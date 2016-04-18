@@ -19,7 +19,6 @@ class TestSwaggerToSDK(unittest.TestCase):
             if key.startswith('TRAVIS'):
                 del os.environ[key]
 
-    @unittest.skip
     def test_get_pr_from_travis_commit_sha(self):
         os.environ['TRAVIS_REPO_SLUG'] = 'Azure/azure-sdk-for-python'
         os.environ['TRAVIS_COMMIT'] = '497955507bc152c444bd1785f34cafefc7e4e8d9'
@@ -31,7 +30,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         pr_obj = get_pr_from_travis_commit_sha(GH_TOKEN)
         self.assertIsNone(pr_obj)
 
-    @unittest.skip
     def test_download_autorest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             exe_path = download_install_autorest(temp_dir)
