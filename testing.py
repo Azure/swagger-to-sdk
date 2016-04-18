@@ -4,7 +4,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 from SwaggerToSdk import *
-from credentials import GH_TOKEN
+
+if not 'GH_TOKEN' in os.environ:
+    raise Exception('GH_TOKEN must be defined to do the unitesting')
+GH_TOKEN = os.environ['GH_TOKEN']
 
 class TestSwaggerToSDK(unittest.TestCase):
 
