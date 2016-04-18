@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/lmazuel/swagger-to-sdk.svg?branch=master)](https://travis-ci.org/lmazuel/swagger-to-sdk) 
+[![Coverage Status](https://coveralls.io/repos/github/lmazuel/swagger-to-sdk/badge.svg?branch=master)](https://coveralls.io/github/lmazuel/swagger-to-sdk?branch=master)
+
 The SwaggerToSDK script is the automation script launched at each commit on any Swagger files to provide:
 - Testing against SDK language
 - Automatic PR on each language SDK
