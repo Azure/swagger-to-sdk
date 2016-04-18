@@ -1,0 +1,4 @@
+PyGithub
+GitPython
+requests
+nose
