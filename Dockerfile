@@ -11,16 +11,17 @@ RUN echo "deb http://download.mono-project.com/repo/debian wheezy main" | tee /e
 		python3-dev \
 		git
 
-RUN pip3 install \
-	PyGithub \
-	GitPython \
-	requests
+# Python packages
+COPY requirements.txt /tmp
+RUN pip3 install -r /tmp/requirements.txt
 
-# Set the locale
+# Set the locale to UTF-8
 RUN locale-gen en_US.UTF-8  
 ENV LANG en_US.UTF-8  
 ENV LANGUAGE en_US:en  
 ENV LC_ALL en_US.UTF-8  
 
+COPY SwaggerToSdk.py /
+
 WORKDIR /git-restapi
-ENTRYPOINT ["python3"]
+ENTRYPOINT ["python3", "/SwaggerToSdk.py"]
