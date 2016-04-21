@@ -3,6 +3,9 @@ import os
 import logging
 logging.basicConfig(level=logging.INFO)
 
+# Fake Travis before importing the Script
+os.environ['TRAVIS'] = 'true'
+
 from SwaggerToSdk import *
 
 if not 'GH_TOKEN' in os.environ:
@@ -18,6 +21,17 @@ class TestSwaggerToSDK(unittest.TestCase):
         for key in list(os.environ.keys()):
             if key.startswith('TRAVIS'):
                 del os.environ[key]
+
+    def test_add_comment_to_pr(self):
+        os.environ['TRAVIS_REPO_SLUG'] = 'lmazuel/TestingRepo'
+
+        os.environ['TRAVIS_PULL_REQUEST'] = 'false'
+        os.environ['TRAVIS_COMMIT'] = 'dd82f65f1b6314b18609b8572464b6d328ea70d4'
+        self.assertTrue(add_comment_to_initial_pr(GH_TOKEN, 'My comment'))
+        del os.environ['TRAVIS_COMMIT']
+
+        os.environ['TRAVIS_PULL_REQUEST'] = '1'
+        self.assertTrue(add_comment_to_initial_pr(GH_TOKEN, 'My comment'))
 
     def test_get_pr_from_travis_commit_sha(self):
         os.environ['TRAVIS_REPO_SLUG'] = 'Azure/azure-sdk-for-python'

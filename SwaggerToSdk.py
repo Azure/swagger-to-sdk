@@ -247,7 +247,7 @@ def get_pr_object_from_travis(gh_token):
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
-    return github_repo.get_issue(int(pr_number))
+    return github_repo.get_pull(int(pr_number))
 
 def compute_pr_comment_with_sdk_pr(comment, sdk_fork_id, branch_name):
     travis_string = "[![Build Status]"\
@@ -284,15 +284,17 @@ def get_pr_from_travis_commit_sha(gh_token):
     return issue_object
 
 def add_comment_to_initial_pr(gh_token, comment):
-    "Add a comment to the initial PR"
+    """Add a comment to the initial PR.
+    :returns: True is comment added, False if PR not found"""
     if not gh_token:
-        return
+        return False
     initial_pr = get_pr_object_from_travis(gh_token)
     if not initial_pr:
         initial_pr = get_pr_from_travis_commit_sha(gh_token)
     if not initial_pr:
-        return
-    initial_pr.create_comment(comment)
+        return False
+    initial_pr.create_issue_comment(comment)
+    return True
 
 def user_login_from_token(gh_token):
     """Get user login from GitHub token"""
