@@ -29,6 +29,7 @@ NEEDS_MONO = platform.system() != 'Windows'
 DEFAULT_BRANCH_NAME = 'autorest'
 DEFAULT_TRAVIS_PR_BRANCH_NAME = 'RestAPI-PR{number}'
 DEFAULT_TRAVIS_BRANCH_NAME = 'RestAPI-{branch}'
+DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
@@ -180,19 +181,18 @@ def compute_branch_name(branch_name):
     return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_number)
 
 
-def commit_and_push(repo, message_template, branch_name, hexsha):
-    """Create commit with all untracked/modified files and push it """
+def do_commit(repo, message_template, branch_name, hexsha):
+    "Do a commit if modified/untracked files"
+    repo.git.add(repo.working_tree_dir)
 
-    if not repo.git.diff():
+    if not repo.git.diff(staged=True):
         _LOGGER.warning('No modified files in this Autorest run')
         return False
-    repo.git.add(repo.working_tree_dir)
 
     checkout_and_create_branch(repo, branch_name)
     msg = message_template.format(hexsha=hexsha)
     repo.index.commit(msg)
     _LOGGER.info("Commit done: %s", msg)
-    repo.git.push('origin', branch_name, set_upstream=True)
     return True
 
 
@@ -431,7 +431,8 @@ def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, messag
             update(language, generated_path, dest_folder)
 
         if gh_token:
-            if commit_and_push(sdk_repo, message_template, branch_name, hexsha):
+            if do_commit(sdk_repo, message_template, branch_name, hexsha):
+                sdk_repo.git.push('origin', branch_name, set_upstream=True)
                 do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name)
             else:
                 add_comment_to_initial_pr(gh_token, "No modification for {}".format(language))
@@ -456,7 +457,7 @@ def main():
                         dest='pr_repo_id', default=None,
                         help='PR repo id. [default: %(default)s]')
     parser.add_argument('--message', '-m',
-                        dest='message', default='Generated from {hexsha}',
+                        dest='message', default=DEFAULT_COMMIT_MESSAGE,
                         help='Force commit message. {hexsha} will be the current REST SHA1 [default: %(default)s]')
     parser.add_argument('--base-branch', '-o',
                         dest='base_branch', default='master',

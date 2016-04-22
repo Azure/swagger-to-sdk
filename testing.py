@@ -1,6 +1,8 @@
 import unittest
 import os
+import traceback
 import logging
+from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 
 # Fake Travis before importing the Script
@@ -21,6 +23,59 @@ class TestSwaggerToSDK(unittest.TestCase):
         for key in list(os.environ.keys()):
             if key.startswith('TRAVIS'):
                 del os.environ[key]
+
+    def test_do_commit(self):
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:
+                    Repo.clone_from('https://github.com/lmazuel/TestingRepo.git', temp_dir)
+                    repo = Repo(temp_dir)
+
+                    result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
+                    self.assertFalse(result)
+                    self.assertNotIn('fakehexsha', repo.head.commit.message)
+                    self.assertEqual(repo.active_branch.name, 'master')
+
+                    file_path = Path(temp_dir, 'file.txt')
+
+                    with file_path.open('w') as file_fd:
+                        file_fd.write('Something')
+
+                    result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
+                    self.assertTrue(result)
+                    self.assertEqual(repo.head.commit.message, 'Test fakehexsha')
+                    self.assertEqual(repo.active_branch.name, 'testing')
+                    self.assertIn('file.txt', repo.head.commit.stats.files)
+
+                    with file_path.open('w') as file_fd:
+                        file_fd.write('New content')
+
+                    result = do_commit(repo, 'Now it is {hexsha}', 'newbranch', 'new-fakehexsha')
+                    self.assertTrue(result)
+                    self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
+                    self.assertEqual(repo.active_branch.name, 'newbranch')
+                    self.assertIn('file.txt', repo.head.commit.stats.files)
+
+                    file_path.unlink()
+                    with file_path.open('w') as file_fd:
+                        file_fd.write('New content') # Same content
+
+                    result = do_commit(repo, 'Now it is {hexsha}', 'fakebranch', 'hexsha_not_used')
+                    self.assertFalse(result)
+                    self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
+                    self.assertEqual(repo.active_branch.name, 'newbranch')
+
+                    finished = True
+                except Exception as err:
+                    print(err)
+                    traceback.print_exc()
+                    raise
+        except PermissionError:
+            if finished:
+                return
+            raise
+
 
     def test_add_comment_to_pr(self):
         os.environ['TRAVIS_REPO_SLUG'] = 'lmazuel/TestingRepo'
