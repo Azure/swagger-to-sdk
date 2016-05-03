@@ -66,9 +66,10 @@ This is a configuration which MUST be at the root of the repository you wants to
     },
     "wrapper_filesOrDirs": [],
     "delete_filesOrDirs": [
-      "*client/credentials.py",
-      "*client/exceptions.py"
-    ]
+      "credentials.py",
+      "exceptions.py"
+    ],
+    "generated_relative_base_directory": "*client"
   },
   "data": {
     "arm-authorization/2015-07-01/swagger/authorization.json": {
