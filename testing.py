@@ -2,6 +2,7 @@ import unittest
 import os
 import traceback
 import logging
+import tempfile
 from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 
@@ -113,23 +114,80 @@ class TestSwaggerToSDK(unittest.TestCase):
                 exe_path = download_install_autorest(temp_dir, "0.16.0-FakePackage")
 
     def test_build_autorest_options(self):
-        line = build_autorest_options("Python", {"A": "value"}, {"B": "value"})
+        line = build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
         self.assertEqual(line, "-A value -B value -CodeGenerator Azure.Python")
 
-        line = build_autorest_options("Python", {"A": "value"}, {"A": "newvalue"})
+        line = build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
         self.assertEqual(line, "-A newvalue -CodeGenerator Azure.Python")
 
-        line = build_autorest_options("Python", {"CodeGenerator": "NodeJS"}, {})
+        line = build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {})
         self.assertEqual(line, "-CodeGenerator NodeJS")
 
-        line = build_autorest_options("Python", {"CodeGenerator": "NodeJS"}, {"CodeGenerator": "CSharp"})
+        line = build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {"autorest_options": {"CodeGenerator": "CSharp"}})
         self.assertEqual(line, "-CodeGenerator CSharp")
 
         line = build_autorest_options("Python", {}, {})
         self.assertEqual(line, "-CodeGenerator Azure.Python")
 
-        line = build_autorest_options("Python", {"A": 12, "B": True})
+        line = build_autorest_options("Python", {"autorest_options": {"A": 12, "B": True}}, {})
         self.assertEqual(line, "-A 12 -B True -CodeGenerator Azure.Python")
+
+    def test_merge_options(self):
+        result = merge_options({}, {}, 'key')
+        self.assertFalse(result)
+
+        result = merge_options({'a': [1, 2, 3]}, {'a': [3, 4, 5]}, 'a')
+        self.assertSetEqual(set(result), {1, 2, 3, 4, 5})
+
+        result = merge_options({'a': [1, 2, 3]}, {}, 'a')
+        self.assertSetEqual(set(result), {1, 2, 3})
+
+        result = merge_options({}, {'a': [3, 4, 5]}, 'a')
+        self.assertSetEqual(set(result), {3, 4, 5})
+
+        result = merge_options({'a': {1: 2, 2: 3}}, {'a': {3: 4, 2: 3}}, 'a')
+        self.assertDictEqual(result, {1: 2, 2: 3, 3: 4})
+
+    def test_update(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            generated = Path(temp_dir, 'generated')
+            generated.mkdir()
+            generated_subfolder = generated.joinpath('inside')
+            generated_subfolder.mkdir()
+
+            output = Path(temp_dir, 'output')
+            output.mkdir()
+
+            Path(generated_subfolder, 'generated.txt').write_bytes(b'My content')
+            Path(generated_subfolder, 'dont_need_this.txt').write_bytes(b'My content')
+            Path(generated_subfolder, 'del_folder').mkdir()
+            Path(output, 'folder').mkdir()
+            Path(output, 'to_keep.txt').write_bytes(b'My content')
+            Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
+            Path(output, 'erase.txt').write_bytes(b'My content')
+
+            update(str(generated), str(output),
+                   {'wrapper_filesOrDirs': [
+                       'to_keep.txt',
+                       'to_*_pattern.txt',
+                       'dont_exist_no_big_deal.txt',
+                       'folder'
+                   ],
+                    'delete_filesOrDirs': [
+                        'dont_need_this.txt',
+                        'dont_exist_no_big_deal_2.txt',
+                        'del_folder'
+                    ],
+                    'generated_relative_base_directory': '*side'}, {}
+                  )
+
+            self.assertTrue(Path(output, 'generated.txt').exists())
+            self.assertTrue(Path(output, 'to_keep.txt').exists())
+            self.assertTrue(Path(output, 'to_keep_pattern.txt').exists())
+            self.assertTrue(Path(output, 'folder').exists())
+            self.assertFalse(Path(output, 'erase.txt').exists())
+            self.assertFalse(Path(output, 'dont_need_this.txt').exists())
+            self.assertFalse(Path(output, 'del_folder').exists())
 
 
 if __name__ == '__main__':

@@ -65,27 +65,38 @@ def download_install_autorest(output_dir, autorest_version=LATEST_TAG):
         autorest_package.extractall(output_dir)
     return os.path.join(output_dir, 'tools', 'AutoRest.exe')
 
-def build_autorest_options(language, global_autorest_conf=None, autorest_conf=None):
+def merge_options(global_conf, local_conf, key):
+    """Merge the conf using override: local conf is prioritary over global"""
+    global_keyed_conf = global_conf.get(key) # Could be None
+    local_keyed_conf = local_conf.get(key) # Could be None
+
+    if global_keyed_conf is None or local_keyed_conf is None:
+        return global_keyed_conf or local_keyed_conf
+
+    if isinstance(global_keyed_conf, list):
+        options = set(global_keyed_conf)
+    else:
+        options = dict(global_keyed_conf)
+
+    options.update(local_keyed_conf)
+    return options
+
+def build_autorest_options(language, global_conf, local_conf):
     """Build the string of the Autorest options"""
-    if global_autorest_conf is None:
-        global_autorest_conf = {}
-    if autorest_conf is None:
-        autorest_conf = {}
+    merged_options = merge_options(global_conf, local_conf, "autorest_options") or {}
 
-    local_conf = dict(global_autorest_conf)
-    local_conf.update(autorest_conf)
-    if "CodeGenerator" not in local_conf:
-        local_conf["CodeGenerator"] = "Azure.{}".format(language)
+    if "CodeGenerator" not in merged_options:
+        merged_options["CodeGenerator"] = "Azure.{}".format(language)
 
-    sorted_keys = sorted(list(local_conf.keys())) # To be honest, just to help for tests...
-    return " ".join("-{} {}".format(key, str(local_conf[key])) for key in sorted_keys)
+    sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
+    return " ".join("-{} {}".format(key, str(merged_options[key])) for key in sorted_keys)
 
-def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_autorest_conf=None, autorest_conf=None):
+def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_conf=None, local_conf=None):
     """Call the Autorest process with the given parameters"""
     if NEEDS_MONO:
         autorest_exe_path = 'mono ' + autorest_exe_path
 
-    autorest_options = build_autorest_options(language, global_autorest_conf, autorest_conf)
+    autorest_options = build_autorest_options(language, global_conf, local_conf)
 
     cmd_line = "{} -i {} -o {} {}"
     cmd_line = cmd_line.format(autorest_exe_path,
@@ -121,37 +132,32 @@ def get_swagger_hexsha(restapi_git_folder):
     return hexsha
 
 
-def update(language, generated_folder, destination_folder):
+def update(generated_folder, destination_folder, global_conf, local_conf):
     """Update data from generated to final folder"""
-    if language == 'Python':
-        update_python(generated_folder, destination_folder)
-    else:
-        update_generic(generated_folder, destination_folder)
+    wrapper_files_or_dirs = merge_options(global_conf, local_conf, "wrapper_filesOrDirs") or []
+    delete_files_or_dirs = merge_options(global_conf, local_conf, "delete_filesOrDirs") or []
+    generated_relative_base_directory = local_conf.get('generated_relative_base_directory') or \
+        global_conf.get('generated_relative_base_directory')
 
-def update_python(generated_folder, destination_folder):
-    """Update data from generated to final folder, Python version"""
-    client_generated_path = next(Path(generated_folder).glob('*client'))
-
-    # Specific code for batch currently
-    batch_auth_file = Path(destination_folder, 'batch_auth.py')
-    if batch_auth_file.exists():
-        batch_auth_file_dest = client_generated_path.joinpath('batch_auth.py')
-        shutil.copy(str(batch_auth_file), str(batch_auth_file_dest))
-
-    client_generated_path.joinpath('credentials.py').unlink()
-    client_generated_path.joinpath('exceptions.py').unlink()
-
-    shutil.rmtree(destination_folder)
-    client_generated_path.replace(destination_folder)
-
-
-def update_generic(generated_folder, destination_folder):
-    """Update data from generated to final folder.
-       Generic version which just copy the files"""
     client_generated_path = Path(generated_folder)
+    if generated_relative_base_directory:
+        client_generated_path = next(client_generated_path.glob(generated_relative_base_directory))
+
+    for wrapper_file_or_dir in wrapper_files_or_dirs:
+        for file_path in Path(destination_folder).glob(wrapper_file_or_dir):
+            relative_file_path = file_path.relative_to(destination_folder)
+            file_path_dest = client_generated_path.joinpath(str(relative_file_path))
+            file_path.replace(file_path_dest)
+
+    for delete_file_or_dir in delete_files_or_dirs:
+        for file_path in client_generated_path.glob(delete_file_or_dir):
+            if file_path.is_file():
+                file_path.unlink()
+            else:
+                shutil.rmtree(str(file_path))
+
     shutil.rmtree(destination_folder)
     client_generated_path.replace(destination_folder)
-
 
 def checkout_and_create_branch(repo, name):
     """Checkout branch. Create it if necessary"""
@@ -394,21 +400,19 @@ def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, messag
         sync_fork(gh_token, sdk_git_id, sdk_repo)
         config = read_config(sdk_repo.working_tree_dir)
 
-        meta_conf = config["meta"]
-        language = meta_conf["language"]
+        global_conf = config["meta"]
+        language = global_conf["language"]
         hexsha = get_swagger_hexsha(restapi_git_folder)
-        global_autorest_conf = meta_conf["autorest_options"] if "autorest_options" in meta_conf else {}
-        autorest_version = meta_conf["autorest"] if "autorest" in meta_conf else LATEST_TAG
+        autorest_version = global_conf["autorest"] if "autorest" in global_conf else LATEST_TAG
 
         autorest_temp_dir = os.path.join(temp_dir, 'autorest')
         os.mkdir(autorest_temp_dir)
 
         autorest_exe_path = download_install_autorest(autorest_temp_dir, autorest_version)
 
-        for file, conf in config["data"].items():
+        for file, local_conf in config["data"].items():
             _LOGGER.info("Working on %s", file)
-            dest = conf['output_dir']
-            autorest_conf = conf['autorest_options']
+            dest = local_conf['output_dir']
             swagger_file = os.path.join(restapi_git_folder, file)
             dest_folder = os.path.join(sdk_repo.working_tree_dir, dest)
 
@@ -427,8 +431,8 @@ def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, messag
             generated_path = os.path.join(temp_dir, os.path.basename(file))
             generate_code(language,
                           swagger_file, generated_path,
-                          autorest_exe_path, global_autorest_conf, autorest_conf)
-            update(language, generated_path, dest_folder)
+                          autorest_exe_path, global_conf, local_conf)
+            update(generated_path, dest_folder, global_conf, local_conf)
 
         if gh_token:
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
@@ -461,7 +465,7 @@ def main():
                         help='Force commit message. {hexsha} will be the current REST SHA1 [default: %(default)s]')
     parser.add_argument('--base-branch', '-o',
                         dest='base_branch', default='master',
-                        help='The base branch from where create the new branch. [default: %(default)s]')
+                        help='The base branch from where create the new branch and where to do the final PR. [default: %(default)s]')
     parser.add_argument('--branch', '-b',
                         dest='branch', default=None,
                         help='The SDK branch to commit. Default if not Travis: {}. If Travis is detected, see epilog for details'.format(DEFAULT_BRANCH_NAME))
