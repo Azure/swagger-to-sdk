@@ -207,6 +207,9 @@ def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch)
     if not gh_token:
         _LOGGER.info('Skipping the PR, no token found')
         return
+    if not sdk_pr_target_repo_id:
+        _LOGGER.info('Skipping the PR, no target repo id')
+        return
 
     github_con = Github(gh_token)
     sdk_pr_target_repo = github_con.get_repo(sdk_pr_target_repo_id)
@@ -437,7 +440,8 @@ def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, messag
         if gh_token:
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
                 sdk_repo.git.push('origin', branch_name, set_upstream=True)
-                do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name)
+                if pr_repo_id:
+                    do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name)
             else:
                 add_comment_to_initial_pr(gh_token, "No modification for {}".format(language))
         else:
@@ -459,7 +463,7 @@ def main():
                         help='Rest API git folder. [default: %(default)s]')
     parser.add_argument('--pr-repo-id',
                         dest='pr_repo_id', default=None,
-                        help='PR repo id. [default: %(default)s]')
+                        help='PR repo id. If not provided, no PR is done')
     parser.add_argument('--message', '-m',
                         dest='message', default=DEFAULT_COMMIT_MESSAGE,
                         help='Force commit message. {hexsha} will be the current REST SHA1 [default: %(default)s]')

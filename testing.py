@@ -148,6 +148,15 @@ class TestSwaggerToSDK(unittest.TestCase):
         result = merge_options({'a': {1: 2, 2: 3}}, {'a': {3: 4, 2: 3}}, 'a')
         self.assertDictEqual(result, {1: 2, 2: 3, 3: 4})
 
+    def test_do_pr(self):
+        # Should do nothing
+        do_pr(None, 'bad', 'bad', 'bad', 'bad')
+
+        # Should do nothing
+        do_pr(GH_TOKEN, 'bad', None, 'bad', 'bad')
+
+        # FIXME - more tests
+
     def test_update(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             generated = Path(temp_dir, 'generated')

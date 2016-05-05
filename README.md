@@ -29,7 +29,7 @@ optional arguments:
   --rest-folder RESTAPI_GIT_FOLDER, -r RESTAPI_GIT_FOLDER
                         Rest API git folder. [default: .]
   --pr-repo-id PR_REPO_ID
-                        PR repo id. [default: None]
+                        PR repo id. If not provided, no PR is done
   --message MESSAGE, -m MESSAGE
                         Force commit message. {hexsha} will be the current
                         REST SHA1 [default: Generated from {hexsha}]
