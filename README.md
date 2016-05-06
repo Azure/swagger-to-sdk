@@ -42,7 +42,7 @@ optional arguments:
                         details
   --config CONFIG_PATH, -c CONFIG_PATH
                         The JSON configuration format path [default:
-                        sdk_autogen_config.json]
+                        swagger_to_sdk.json]
   -v, --verbose         Verbosity in INFO mode
   --debug               Verbosity in DEBUG mode
 

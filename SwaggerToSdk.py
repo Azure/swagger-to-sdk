@@ -34,9 +34,9 @@ DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
 
-def read_config(sdk_git_folder):
+def read_config(sdk_git_folder, config_file):
     """Read the configuration file and return JSON"""
-    config_path = os.path.join(sdk_git_folder, CONFIG_FILE)
+    config_path = os.path.join(sdk_git_folder, config_file)
     with open(config_path, 'r') as config_fd:
         return json.loads(config_fd.read())
 
@@ -383,7 +383,7 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
         shutil.rmtree(sdk_path, onerror=remove_readonly)
 
 
-def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name):
+def build_libraries(gh_token, config_path, restapi_git_folder, sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
     branch_name = compute_branch_name(branch_name)
@@ -401,7 +401,7 @@ def build_libraries(gh_token, restapi_git_folder, sdk_git_id, pr_repo_id, messag
             sdk_repo.git.checkout(base_branch_name)
 
         sync_fork(gh_token, sdk_git_id, sdk_repo)
-        config = read_config(sdk_repo.working_tree_dir)
+        config = read_config(sdk_repo.working_tree_dir, config_path)
 
         global_conf = config["meta"]
         language = global_conf["language"]
@@ -474,7 +474,7 @@ def main():
                         dest='branch', default=None,
                         help='The SDK branch to commit. Default if not Travis: {}. If Travis is detected, see epilog for details'.format(DEFAULT_BRANCH_NAME))
     parser.add_argument('--config', '-c',
-                        dest='config_path', default='sdk_autogen_config.json',
+                        dest='config_path', default=CONFIG_FILE,
                         help='The JSON configuration format path [default: %(default)s]')
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action="store_true",
@@ -501,6 +501,7 @@ def main():
         main_logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
     build_libraries(gh_token,
+                    args.config_path,
                     args.restapi_git_folder, args.sdk_git_id,
                     args.pr_repo_id,
                     args.message, args.base_branch, args.branch)
