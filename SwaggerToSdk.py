@@ -338,7 +338,7 @@ def sync_fork(gh_token, github_repo_id, repo):
         return
     else:
         _LOGGER.info('Merge from upstream')
-    msg = repo.git.merge('upstream/{}'.format(repo.active_branch.name))
+    msg = repo.git.rebase('upstream/{}'.format(repo.active_branch.name))
     _LOGGER.debug(msg)
     msg = repo.git.push()
     _LOGGER.debug(msg)
