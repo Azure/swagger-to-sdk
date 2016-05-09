@@ -271,6 +271,8 @@ def get_pr_from_travis_commit_sha(gh_token):
     Will check if the found number is really a merged PR"""
     if not gh_token:
         return
+    if not IS_TRAVIS:
+        return
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
