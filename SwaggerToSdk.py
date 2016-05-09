@@ -305,10 +305,18 @@ def add_comment_to_initial_pr(gh_token, comment):
     initial_pr.create_issue_comment(comment)
     return True
 
-def user_login_from_token(gh_token):
+def configure_user(gh_token, repo):
+    """git config --global user.email "you@example.com"
+       git config --global user.name "Your Name"
+    """
+    user = user_from_token(gh_token)
+    repo.git.config('user.email', user.email or 'autorestci@microsoft.com')
+    repo.git.config('user.name', user.name or 'SwaggerToSDK Automation')
+
+def user_from_token(gh_token):
     """Get user login from GitHub token"""
     github_con = Github(gh_token)
-    return github_con.get_user().login
+    return github_con.get_user()
 
 def sync_fork(gh_token, github_repo_id, repo):
     """Sync the current branch in this fork against the direct parent on Github"""
@@ -337,8 +345,8 @@ def sync_fork(gh_token, github_repo_id, repo):
 def get_full_sdk_id(gh_token, sdk_git_id):
     """If the SDK git id is incomplete, try to complete it with user login"""
     if not '/' in sdk_git_id:
-        user = user_login_from_token(gh_token)
-        return '{}/{}'.format(user, sdk_git_id)
+        login = user_from_token(gh_token).login
+        return '{}/{}'.format(login, sdk_git_id)
     return sdk_git_id
 
 def clone_to_path(gh_token, temp_dir, sdk_git_id):
@@ -347,9 +355,9 @@ def clone_to_path(gh_token, temp_dir, sdk_git_id):
 
     credentials_part = ''
     if gh_token:
-        user = user_login_from_token(gh_token)
+        login = user_from_token(gh_token).login
         credentials_part = '{user}:{token}@'.format(
-            user=user,
+            user=login,
             token=gh_token
         )
     else:
@@ -393,6 +401,8 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder, 
             manage_sdk_folder(gh_token, temp_dir, sdk_git_id) as sdk_folder:
 
         sdk_repo = Repo(sdk_folder)
+        if gh_token:
+            configure_user(gh_token, sdk_repo)
         try:
             _LOGGER.info('Try to checkout the destination branch if it already exists')
             sdk_repo.git.checkout(branch_name)
