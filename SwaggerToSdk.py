@@ -271,6 +271,8 @@ def get_pr_from_travis_commit_sha(gh_token):
     Will check if the found number is really a merged PR"""
     if not gh_token:
         return
+    if not IS_TRAVIS:
+        return
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
@@ -305,10 +307,18 @@ def add_comment_to_initial_pr(gh_token, comment):
     initial_pr.create_issue_comment(comment)
     return True
 
-def user_login_from_token(gh_token):
+def configure_user(gh_token, repo):
+    """git config --global user.email "you@example.com"
+       git config --global user.name "Your Name"
+    """
+    user = user_from_token(gh_token)
+    repo.git.config('user.email', user.email or 'autorestci@microsoft.com')
+    repo.git.config('user.name', user.name or 'SwaggerToSDK Automation')
+
+def user_from_token(gh_token):
     """Get user login from GitHub token"""
     github_con = Github(gh_token)
-    return github_con.get_user().login
+    return github_con.get_user()
 
 def sync_fork(gh_token, github_repo_id, repo):
     """Sync the current branch in this fork against the direct parent on Github"""
@@ -328,7 +338,7 @@ def sync_fork(gh_token, github_repo_id, repo):
         return
     else:
         _LOGGER.info('Merge from upstream')
-    msg = repo.git.merge('upstream/{}'.format(repo.active_branch.name))
+    msg = repo.git.rebase('upstream/{}'.format(repo.active_branch.name))
     _LOGGER.debug(msg)
     msg = repo.git.push()
     _LOGGER.debug(msg)
@@ -337,8 +347,8 @@ def sync_fork(gh_token, github_repo_id, repo):
 def get_full_sdk_id(gh_token, sdk_git_id):
     """If the SDK git id is incomplete, try to complete it with user login"""
     if not '/' in sdk_git_id:
-        user = user_login_from_token(gh_token)
-        return '{}/{}'.format(user, sdk_git_id)
+        login = user_from_token(gh_token).login
+        return '{}/{}'.format(login, sdk_git_id)
     return sdk_git_id
 
 def clone_to_path(gh_token, temp_dir, sdk_git_id):
@@ -347,9 +357,9 @@ def clone_to_path(gh_token, temp_dir, sdk_git_id):
 
     credentials_part = ''
     if gh_token:
-        user = user_login_from_token(gh_token)
+        login = user_from_token(gh_token).login
         credentials_part = '{user}:{token}@'.format(
-            user=user,
+            user=login,
             token=gh_token
         )
     else:
@@ -383,7 +393,7 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
         shutil.rmtree(sdk_path, onerror=remove_readonly)
 
 
-def build_libraries(gh_token, config_path, restapi_git_folder, sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name):
+def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder, sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
     branch_name = compute_branch_name(branch_name)
@@ -393,6 +403,8 @@ def build_libraries(gh_token, config_path, restapi_git_folder, sdk_git_id, pr_re
             manage_sdk_folder(gh_token, temp_dir, sdk_git_id) as sdk_folder:
 
         sdk_repo = Repo(sdk_folder)
+        if gh_token:
+            configure_user(gh_token, sdk_repo)
         try:
             _LOGGER.info('Try to checkout the destination branch if it already exists')
             sdk_repo.git.checkout(branch_name)
@@ -413,11 +425,13 @@ def build_libraries(gh_token, config_path, restapi_git_folder, sdk_git_id, pr_re
 
         autorest_exe_path = download_install_autorest(autorest_temp_dir, autorest_version)
 
-        for file, local_conf in config["data"].items():
-            _LOGGER.info("Working on %s", file)
+        for project, local_conf in config["projects"].items():
+            if project_pattern and not any(project.startswith(p) for p in project_pattern):
+                _LOGGER.info("Skip project %s", project)
+                continue
+            _LOGGER.info("Working on %s", local_conf['swagger'])
             dest = local_conf['output_dir']
-            swagger_file = os.path.join(restapi_git_folder, file)
-            dest_folder = os.path.join(sdk_repo.working_tree_dir, dest)
+            swagger_file = os.path.join(restapi_git_folder, local_conf['swagger'])
 
             if not os.path.isfile(swagger_file):
                 err_msg = "Swagger file does not exist or is not readable: {}".format(
@@ -425,13 +439,14 @@ def build_libraries(gh_token, config_path, restapi_git_folder, sdk_git_id, pr_re
                 _LOGGER.critical(err_msg)
                 raise ValueError(err_msg)
 
+            dest_folder = os.path.join(sdk_repo.working_tree_dir, dest)
             if not os.path.isdir(dest_folder):
                 err_msg = "Dest folder does not exist or is not accessible: {}".format(
                     dest_folder)
                 _LOGGER.critical(err_msg)
                 raise ValueError(err_msg)
 
-            generated_path = os.path.join(temp_dir, os.path.basename(file))
+            generated_path = os.path.join(temp_dir, os.path.basename(swagger_file))
             generate_code(language,
                           swagger_file, generated_path,
                           autorest_exe_path, global_conf, local_conf)
@@ -467,6 +482,9 @@ def main():
     parser.add_argument('--message', '-m',
                         dest='message', default=DEFAULT_COMMIT_MESSAGE,
                         help='Force commit message. {hexsha} will be the current REST SHA1 [default: %(default)s]')
+    parser.add_argument('--project', '-p',
+                        dest='project', action='append',
+                        help='Select a specific project. Do all by default. You can use a substring for several projects.')
     parser.add_argument('--base-branch', '-o',
                         dest='base_branch', default='master',
                         help='The base branch from where create the new branch and where to do the final PR. [default: %(default)s]')
@@ -501,7 +519,7 @@ def main():
         main_logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
     build_libraries(gh_token,
-                    args.config_path,
+                    args.config_path, args.project,
                     args.restapi_git_folder, args.sdk_git_id,
                     args.pr_repo_id,
                     args.message, args.base_branch, args.branch)

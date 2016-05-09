@@ -1,6 +1,5 @@
 import unittest
 import os
-import traceback
 import logging
 import tempfile
 from pathlib import Path
@@ -29,49 +28,44 @@ class TestSwaggerToSDK(unittest.TestCase):
         finished = False # Authorize PermissionError on cleanup
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
-                try:
-                    Repo.clone_from('https://github.com/lmazuel/TestingRepo.git', temp_dir)
-                    repo = Repo(temp_dir)
+                Repo.clone_from('https://github.com/lmazuel/TestingRepo.git', temp_dir)
+                repo = Repo(temp_dir)
 
-                    result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
-                    self.assertFalse(result)
-                    self.assertNotIn('fakehexsha', repo.head.commit.message)
-                    self.assertEqual(repo.active_branch.name, 'master')
+                result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
+                self.assertFalse(result)
+                self.assertNotIn('fakehexsha', repo.head.commit.message)
+                self.assertEqual(repo.active_branch.name, 'master')
 
-                    file_path = Path(temp_dir, 'file.txt')
+                file_path = Path(temp_dir, 'file.txt')
 
-                    with file_path.open('w') as file_fd:
-                        file_fd.write('Something')
+                with file_path.open('w') as file_fd:
+                    file_fd.write('Something')
 
-                    result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
-                    self.assertTrue(result)
-                    self.assertEqual(repo.head.commit.message, 'Test fakehexsha')
-                    self.assertEqual(repo.active_branch.name, 'testing')
-                    self.assertIn('file.txt', repo.head.commit.stats.files)
+                result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
+                self.assertTrue(result)
+                self.assertEqual(repo.head.commit.message, 'Test fakehexsha')
+                self.assertEqual(repo.active_branch.name, 'testing')
+                self.assertIn('file.txt', repo.head.commit.stats.files)
 
-                    with file_path.open('w') as file_fd:
-                        file_fd.write('New content')
+                with file_path.open('w') as file_fd:
+                    file_fd.write('New content')
 
-                    result = do_commit(repo, 'Now it is {hexsha}', 'newbranch', 'new-fakehexsha')
-                    self.assertTrue(result)
-                    self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
-                    self.assertEqual(repo.active_branch.name, 'newbranch')
-                    self.assertIn('file.txt', repo.head.commit.stats.files)
+                result = do_commit(repo, 'Now it is {hexsha}', 'newbranch', 'new-fakehexsha')
+                self.assertTrue(result)
+                self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
+                self.assertEqual(repo.active_branch.name, 'newbranch')
+                self.assertIn('file.txt', repo.head.commit.stats.files)
 
-                    file_path.unlink()
-                    with file_path.open('w') as file_fd:
-                        file_fd.write('New content') # Same content
+                file_path.unlink()
+                with file_path.open('w') as file_fd:
+                    file_fd.write('New content') # Same content
 
-                    result = do_commit(repo, 'Now it is {hexsha}', 'fakebranch', 'hexsha_not_used')
-                    self.assertFalse(result)
-                    self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
-                    self.assertEqual(repo.active_branch.name, 'newbranch')
+                result = do_commit(repo, 'Now it is {hexsha}', 'fakebranch', 'hexsha_not_used')
+                self.assertFalse(result)
+                self.assertEqual(repo.head.commit.message, 'Now it is new-fakehexsha')
+                self.assertEqual(repo.active_branch.name, 'newbranch')
 
-                    finished = True
-                except Exception as err:
-                    print(err)
-                    traceback.print_exc()
-                    raise
+                finished = True
         except PermissionError:
             if finished:
                 return
@@ -147,6 +141,32 @@ class TestSwaggerToSDK(unittest.TestCase):
 
         result = merge_options({'a': {1: 2, 2: 3}}, {'a': {3: 4, 2: 3}}, 'a')
         self.assertDictEqual(result, {1: 2, 2: 3, 3: 4})
+
+    def test_get_user(self):
+        user = user_from_token(GH_TOKEN)
+        self.assertEqual(user.login, 'lmazuel')
+
+    def test_configure(self):
+        finished = False
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                try:
+                    Repo.clone_from('https://github.com/lmazuel/TestingRepo.git', temp_dir)
+                    repo = Repo(temp_dir)
+
+                    # If it's not throwing, I'm happy enough
+                    configure_user(GH_TOKEN, repo)
+
+                    self.assertEqual(repo.git.config('--get', 'user.name'), 'Laurent Mazuel')
+                except Exception as err:
+                    print(err)
+                    self.fail(err)
+                else:
+                    finished = True
+        except PermissionError:
+            if finished:
+                return
+            raise
 
     def test_do_pr(self):
         # Should do nothing
