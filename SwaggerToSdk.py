@@ -392,8 +392,30 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
         _LOGGER.debug("Preclean SDK folder")
         shutil.rmtree(sdk_path, onerror=remove_readonly)
 
+def install_autorest(temp_dir, global_conf=None, autorest_dir=None):
+    """ Return an AutoRest.exe path.
+    Either download using temp_dir and conf, either check presence in
+    autorest_dir. IF autorest_dir is provided, AutoRest.exe must be found inside.
+    """
+    if autorest_dir:
+        autorest_path = Path(autorest_dir, 'AutoRest.exe')
+        if autorest_path.exists():
+            return str(autorest_path)
+        raise ValueError('{} does not exists'.format(autorest_path))
 
-def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder, sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name):
+    if global_conf is None:
+        global_conf = {}
+    autorest_version = global_conf.get("autorest", LATEST_TAG)
+
+    autorest_temp_dir = os.path.join(temp_dir, 'autorest')
+    os.mkdir(autorest_temp_dir)
+
+    return download_install_autorest(autorest_temp_dir, autorest_version)
+
+
+def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
+         sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
+         autorest_dir=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
     branch_name = compute_branch_name(branch_name)
@@ -418,12 +440,8 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder, 
         global_conf = config["meta"]
         language = global_conf["language"]
         hexsha = get_swagger_hexsha(restapi_git_folder)
-        autorest_version = global_conf["autorest"] if "autorest" in global_conf else LATEST_TAG
 
-        autorest_temp_dir = os.path.join(temp_dir, 'autorest')
-        os.mkdir(autorest_temp_dir)
-
-        autorest_exe_path = download_install_autorest(autorest_temp_dir, autorest_version)
+        autorest_exe_path = install_autorest(temp_dir, global_conf, autorest_dir)
 
         for project, local_conf in config["projects"].items():
             if project_pattern and not any(project.startswith(p) for p in project_pattern):
@@ -494,6 +512,9 @@ def main():
     parser.add_argument('--config', '-c',
                         dest='config_path', default=CONFIG_FILE,
                         help='The JSON configuration format path [default: %(default)s]')
+    parser.add_argument('--autorest',
+                        dest='autorest_dir',
+                        help='Force the Autorest to be executed. Must be a directory containing Autorest.exe')
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action="store_true",
                         help="Verbosity in INFO mode")
@@ -522,7 +543,8 @@ def main():
                     args.config_path, args.project,
                     args.restapi_git_folder, args.sdk_git_id,
                     args.pr_repo_id,
-                    args.message, args.base_branch, args.branch)
+                    args.message, args.base_branch, args.branch,
+                    args.autorest_dir)
 
 if __name__ == "__main__":
     main()

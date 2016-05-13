@@ -37,9 +37,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                 self.assertEqual(repo.active_branch.name, 'master')
 
                 file_path = Path(temp_dir, 'file.txt')
-
-                with file_path.open('w') as file_fd:
-                    file_fd.write('Something')
+                file_path.write_text('Something')
 
                 result = do_commit(repo, 'Test {hexsha}', 'testing', 'fakehexsha')
                 self.assertTrue(result)
@@ -47,8 +45,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                 self.assertEqual(repo.active_branch.name, 'testing')
                 self.assertIn('file.txt', repo.head.commit.stats.files)
 
-                with file_path.open('w') as file_fd:
-                    file_fd.write('New content')
+                file_path.write_text('New content')
 
                 result = do_commit(repo, 'Now it is {hexsha}', 'newbranch', 'new-fakehexsha')
                 self.assertTrue(result)
@@ -57,8 +54,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                 self.assertIn('file.txt', repo.head.commit.stats.files)
 
                 file_path.unlink()
-                with file_path.open('w') as file_fd:
-                    file_fd.write('New content') # Same content
+                file_path.write_text('New content')
 
                 result = do_commit(repo, 'Now it is {hexsha}', 'fakebranch', 'hexsha_not_used')
                 self.assertFalse(result)
@@ -94,18 +90,27 @@ class TestSwaggerToSDK(unittest.TestCase):
         pr_obj = get_pr_from_travis_commit_sha(GH_TOKEN)
         self.assertIsNone(pr_obj)
 
-    def test_download_autorest(self):
+    def test_install_autorest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            exe_path = download_install_autorest(temp_dir)
+            exe_path = install_autorest(temp_dir)
             self.assertTrue(exe_path.lower().endswith("autorest.exe"))
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            exe_path = download_install_autorest(temp_dir, "0.16.0-Nightly20160410")
+            exe_path = install_autorest(temp_dir, {'autorest': "0.16.0-Nightly20160410"})
+            self.assertTrue(exe_path.lower().endswith("autorest.exe"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            Path(temp_dir, 'AutoRest.exe').write_text("I'm not a virus")
+            exe_path = install_autorest(temp_dir, autorest_dir=temp_dir)
             self.assertTrue(exe_path.lower().endswith("autorest.exe"))
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with self.assertRaises(ValueError):
-                exe_path = download_install_autorest(temp_dir, "0.16.0-FakePackage")
+                install_autorest(temp_dir, {'autorest': "0.16.0-FakePackage"})
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(ValueError):
+                install_autorest(temp_dir, autorest_dir=temp_dir)
 
     def test_build_autorest_options(self):
         line = build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
