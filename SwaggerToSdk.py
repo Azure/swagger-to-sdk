@@ -103,7 +103,7 @@ def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_
                                swagger_file,
                                output_dir,
                                autorest_options)
-    _LOGGER.debug("Autorest cmd line:\n%s", cmd_line)
+    _LOGGER.info("Autorest cmd line:\n%s", cmd_line)
 
     try:
         result = subprocess.check_output(cmd_line.split(),
