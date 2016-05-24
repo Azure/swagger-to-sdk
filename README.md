@@ -13,7 +13,8 @@ This works is still in progress and move fast. We'll do our best to keep this pa
 usage: SwaggerToSdk.py [-h] [--rest-folder RESTAPI_GIT_FOLDER]
                        [--pr-repo-id PR_REPO_ID] [--message MESSAGE]
                        [--project PROJECT] [--base-branch BASE_BRANCH]
-                       [--branch BRANCH] [--config CONFIG_PATH] [-v] [--debug]
+                       [--branch BRANCH] [--config CONFIG_PATH]
+                       [--autorest AUTOREST_DIR] [-v] [--debug]
                        sdk_git_id
 
 Build SDK using Autorest and push to Github. The GH_TOKEN environment variable
@@ -46,6 +47,9 @@ optional arguments:
   --config CONFIG_PATH, -c CONFIG_PATH
                         The JSON configuration format path [default:
                         swagger_to_sdk_config.json]
+  --autorest AUTOREST_DIR
+                        Force the Autorest to be executed. Must be a directory
+                        containing Autorest.exe
   -v, --verbose         Verbosity in INFO mode
   --debug               Verbosity in DEBUG mode
 
