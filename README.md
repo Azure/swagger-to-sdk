@@ -17,13 +17,10 @@ usage: SwaggerToSdk.py [-h] [--rest-folder RESTAPI_GIT_FOLDER]
                        [--autorest AUTOREST_DIR] [-v] [--debug]
                        sdk_git_id
 
-Build SDK using Autorest and push to Github. The GH_TOKEN environment variable
-needs to be set.
+Build SDK using Autorest and push to Github. The GH_TOKEN environment variable needs to be set to act on Github.
 
 positional arguments:
-  sdk_git_id            The SDK Github id. If a simple string, consider it
-                        belongs to the GH_TOKEN owner repo. Otherwise, you can
-                        use the syntax username/repoid
+  sdk_git_id            The SDK Github id. If a simple string, consider it belongs to the GH_TOKEN owner repo. Otherwise, you can use the syntax username/repoid
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -32,29 +29,23 @@ optional arguments:
   --pr-repo-id PR_REPO_ID
                         PR repo id. If not provided, no PR is done
   --message MESSAGE, -m MESSAGE
-                        Force commit message. {hexsha} will be the current
-                        REST SHA1 [default: Generated from {hexsha}]
+                        Force commit message. {hexsha} will be the current REST SHA1 [default: Generated from {hexsha}]
   --project PROJECT, -p PROJECT
-                        Select a specific project. Do all by default. You can
-                        use a substring for several projects.
+                        Select a specific project. Do all by default. You can use a substring for several projects.
   --base-branch BASE_BRANCH, -o BASE_BRANCH
-                        The base branch from where create the new branch and
-                        where to do the final PR. [default: master]
+                        The base branch from where create the new branch and where to do the final PR. [default: master]
   --branch BRANCH, -b BRANCH
-                        The SDK branch to commit. Default if not Travis:
-                        autorest. If Travis is detected, see epilog for
-                        details
+                        The SDK branch to commit. Default if not Travis: autorest. If Travis is detected, see epilog for details
   --config CONFIG_PATH, -c CONFIG_PATH
-                        The JSON configuration format path [default:
-                        swagger_to_sdk_config.json]
+                        The JSON configuration format path [default: swagger_to_sdk_config.json]
   --autorest AUTOREST_DIR
-                        Force the Autorest to be executed. Must be a directory
-                        containing Autorest.exe
+                        Force the Autorest to be executed. Must be a directory containing Autorest.exe
   -v, --verbose         Verbosity in INFO mode
   --debug               Verbosity in DEBUG mode
 
-If Travis is detected, --branch is setted by default to "RestAPI-PR{number}"
-if triggered by a PR, "RestAPI-{branch}" otherwise
+The script activates this additional behaviour if Travis is detected:
+ --branch is setted by default to "RestAPI-PR{number}" if triggered by a PR, "RestAPI-{branch}" otherwise
+ Only the files inside the PR are considered. If the PR is NOT detected, all files are used.
 ```
 
 # Configuration file swagger_to_sdk.json
