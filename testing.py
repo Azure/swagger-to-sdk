@@ -24,6 +24,28 @@ class TestSwaggerToSDK(unittest.TestCase):
             if key.startswith('TRAVIS'):
                 del os.environ[key]
 
+    def test_get_pr_files(self):
+        def get_pr(repo_id, pr_number):
+            anonymous_github_client = Github()
+            repo = anonymous_github_client.get_repo(repo_id)
+            return repo.get_pull(int(pr_number))
+
+        # Basic test, one Swagger file only
+        self.assertSetEqual(
+            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 342)),
+            {'search/2015-02-28-Preview/swagger/searchservice.json'}
+        )
+        # This PR contains a schema and a Swagger, I just want the swagger
+        self.assertSetEqual(
+            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 341)),
+            {'arm-mobileengagement/2014-12-01/swagger/mobile-engagement.json'}
+        )
+        # Should not find Swagger and not fails
+        self.assertSetEqual(
+            get_swagger_files_in_pr(get_pr('Azure/azure-sdk-for-python', 627)),
+            set()
+        )
+
     def test_do_commit(self):
         finished = False # Authorize PermissionError on cleanup
         try:

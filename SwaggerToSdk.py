@@ -33,6 +33,10 @@ DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
+def get_swagger_files_in_pr(pr_object):
+    """Get the list of Swagger files in the given PR."""
+    return {file.filename for file in pr_object.get_files()
+            if re.match(r".*/swagger/.*\.json", file.filename, re.I)}
 
 def read_config(sdk_git_folder, config_file):
     """Read the configuration file and return JSON"""
@@ -242,10 +246,10 @@ def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch)
     add_comment_to_initial_pr(gh_token, comment)
 
 
-def get_pr_object_from_travis(gh_token):
+def get_pr_object_from_travis(gh_token=None):
     """If Travis, return the Github object representing the PR.
        If result is None, is not Travis.
-       Might raise if Travis
+       The GH token is optional if the repo is public.
     """
     if not IS_TRAVIS:
         return
@@ -266,11 +270,10 @@ def compute_pr_comment_with_sdk_pr(comment, sdk_fork_id, branch_name):
                                          fork_repo_id=sdk_fork_id)
     return travis_string+' '+comment
 
-def get_pr_from_travis_commit_sha(gh_token):
+def get_pr_from_travis_commit_sha(gh_token=None):
     """Try to determine the initial PR using #<number> in the current commit comment.
-    Will check if the found number is really a merged PR"""
-    if not gh_token:
-        return
+    Will check if the found number is really a merged PR.
+    The GH token is optional if the repo is public."""
     if not IS_TRAVIS:
         return
     github_con = Github(gh_token)
@@ -294,14 +297,24 @@ def get_pr_from_travis_commit_sha(gh_token):
         _LOGGER.warning('Was not able to found PR commit message')
     return issue_object
 
+def get_initial_pr(gh_token=None):
+    """Try to deduce the initial PR of the current repo state.
+    Use Travis env variable first, try with commit regexp otherwise.
+    gh_token could be None for public repo.
+
+    :param str gh_token: A Github token. Useful only if the repo is private.
+    :return: A PR object if found, None otherwise
+    :rtype: github.PullRequest.PullRequest
+    """
+    return get_pr_object_from_travis(gh_token) or \
+        get_pr_from_travis_commit_sha(gh_token)
+
 def add_comment_to_initial_pr(gh_token, comment):
     """Add a comment to the initial PR.
     :returns: True is comment added, False if PR not found"""
     if not gh_token:
         return False
-    initial_pr = get_pr_object_from_travis(gh_token)
-    if not initial_pr:
-        initial_pr = get_pr_from_travis_commit_sha(gh_token)
+    initial_pr = get_initial_pr(gh_token)
     if not initial_pr:
         return False
     initial_pr.create_issue_comment(comment)
@@ -441,12 +454,20 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
         language = global_conf["language"]
         hexsha = get_swagger_hexsha(restapi_git_folder)
 
+        initial_pr = get_initial_pr(gh_token)
+        swagger_files_in_pr = get_swagger_files_in_pr(initial_pr) if initial_pr else None
+
         autorest_exe_path = install_autorest(temp_dir, global_conf, autorest_dir)
 
         for project, local_conf in config["projects"].items():
             if project_pattern and not any(project.startswith(p) for p in project_pattern):
                 _LOGGER.info("Skip project %s", project)
                 continue
+
+            if swagger_files_in_pr is not None and local_conf['swagger'] not in swagger_files_in_pr:
+                _LOGGER.info("Skip file not in PR %s", project)
+                continue
+
             _LOGGER.info("Working on %s", local_conf['swagger'])
             dest = local_conf['output_dir']
             swagger_file = os.path.join(restapi_git_folder, local_conf['swagger'])
@@ -485,12 +506,19 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
 
 def main():
     """Main method"""
-    parser = argparse.ArgumentParser(
-        description='Build SDK using Autorest and push to Github. The GH_TOKEN environment variable needs to be set.',
-        epilog='If Travis is detected, --branch is setted by default to "{}" if triggered by a PR, "{}" otherwise'.format(
+    epilog = "\n".join([
+        'The script activates this additional behaviour if Travis is detected:',
+        ' --branch is setted by default to "{}" if triggered by a PR, "{}" otherwise'.format(
             DEFAULT_TRAVIS_PR_BRANCH_NAME,
             DEFAULT_TRAVIS_BRANCH_NAME
-        ))
+        ),
+        ' Only the files inside the PR are considered. If the PR is NOT detected, all files are used.'
+    ])
+
+    parser = argparse.ArgumentParser(
+        description='Build SDK using Autorest and push to Github. The GH_TOKEN environment variable needs to be set to act on Github.',
+        epilog=epilog,
+        formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--rest-folder', '-r',
                         dest='restapi_git_folder', default='.',
                         help='Rest API git folder. [default: %(default)s]')
