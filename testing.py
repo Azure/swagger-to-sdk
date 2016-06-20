@@ -24,6 +24,37 @@ class TestSwaggerToSDK(unittest.TestCase):
             if key.startswith('TRAVIS'):
                 del os.environ[key]
 
+    def test_get_swagger_project_files_in_pr(self):
+        def get_pr(repo_id, pr_number):
+            anonymous_github_client = Github()
+            repo = anonymous_github_client.get_repo(repo_id)
+            return repo.get_pull(int(pr_number))
+
+        swagger = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 344))
+        self.assertEqual(len(swagger), 3)
+
+    def test_swagger_index_from_composite(self):
+        self.assertDictEqual(
+            {
+                'arm-graphrbac/1.6/swagger/graphrbac.json':
+                    Path('test/compositeGraphRbacManagementClient.json'),
+                'arm-graphrbac/1.6-internal/swagger/graphrbac.json':
+                    Path('test/compositeGraphRbacManagementClient.json')
+            },
+            swagger_index_from_composite()
+        )
+
+    def test_get_doc_composite(self):
+        composite_path = Path('test/compositeGraphRbacManagementClient.json')
+        documents = get_documents_in_composite_file(composite_path)
+        self.assertEqual(len(documents), 2)
+        self.assertEqual(documents[0], 'arm-graphrbac/1.6/swagger/graphrbac.json')
+        self.assertEqual(documents[1], 'arm-graphrbac/1.6-internal/swagger/graphrbac.json')
+
+    def test_find_composite_files(self):
+        files = find_composite_files()
+        self.assertEqual(files[0], Path('test/compositeGraphRbacManagementClient.json'))
+
     def test_get_pr_files(self):
         def get_pr(repo_id, pr_number):
             anonymous_github_client = Github()

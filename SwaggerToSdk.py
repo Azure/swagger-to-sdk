@@ -33,10 +33,43 @@ DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
+def get_documents_in_composite_file(composite_filepath):
+    """Get the documents inside this composite file, relative to the repo root.
+
+    :params str composite_filepath: The filepath, relative to the repo root or absolute.
+    :returns: An iterable of Swagger specs in this composite file
+    :rtype: list<str>"""
+    with composite_filepath.open() as composite_fd:
+        return [d.split('/master/')[1] for d in json.load(composite_fd)['documents']]
+
+def find_composite_files(base_dir=Path('.')):
+    """Find composite file.
+    :rtype: pathlib.Path"""
+    return list(Path(base_dir).glob('*/composite*.json'))
+
+def swagger_index_from_composite(base_dir=Path('.')):
+    """Build a reversed index of the composite files in thie repository.
+    :rtype: dict"""
+    return {
+        doc: composite_file
+        for composite_file in find_composite_files(base_dir)
+        for doc in get_documents_in_composite_file(composite_file)
+    }
+
 def get_swagger_files_in_pr(pr_object):
     """Get the list of Swagger files in the given PR."""
     return {file.filename for file in pr_object.get_files()
             if re.match(r".*/swagger/.*\.json", file.filename, re.I)}
+
+def get_swagger_project_files_in_pr(pr_object):
+    """List project files in the PR, a project file being a Composite file or a Swagger file."""
+    swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
+    swagger_index = swagger_index_from_composite()
+    swagger_files_in_pr |= {swagger_index[s]
+                            for s in swagger_files_in_pr
+                            if s in swagger_index}
+    return swagger_files_in_pr
+
 
 def read_config(sdk_git_folder, config_file):
     """Read the configuration file and return JSON"""
@@ -455,7 +488,7 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
         hexsha = get_swagger_hexsha(restapi_git_folder)
 
         initial_pr = get_initial_pr(gh_token)
-        swagger_files_in_pr = get_swagger_files_in_pr(initial_pr) if initial_pr else None
+        swagger_files_in_pr = get_swagger_project_files_in_pr(initial_pr) if initial_pr else set()
 
         autorest_exe_path = install_autorest(temp_dir, global_conf, autorest_dir)
 
@@ -464,7 +497,7 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            if swagger_files_in_pr is not None and local_conf['swagger'] not in swagger_files_in_pr:
+            if initial_pr and local_conf['swagger'] not in swagger_files_in_pr:
                 _LOGGER.info("Skip file not in PR %s", project)
                 continue
 
