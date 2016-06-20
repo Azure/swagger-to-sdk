@@ -65,7 +65,7 @@ def get_swagger_project_files_in_pr(pr_object):
     """List project files in the PR, a project file being a Composite file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
     swagger_index = swagger_index_from_composite()
-    swagger_files_in_pr |= {swagger_index[s]
+    swagger_files_in_pr |= {str(swagger_index[s]).replace('\\','/')
                             for s in swagger_files_in_pr
                             if s in swagger_index}
     return swagger_files_in_pr

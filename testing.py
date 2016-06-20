@@ -30,8 +30,11 @@ class TestSwaggerToSDK(unittest.TestCase):
             repo = anonymous_github_client.get_repo(repo_id)
             return repo.get_pull(int(pr_number))
 
-        swagger = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 344))
-        self.assertEqual(len(swagger), 3)
+        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 361))
+        for s in swaggers:
+            self.assertIsInstance(s, str)
+            self.assertIn(s, ['arm-graphrbac/1.6/swagger/graphrbac.json', 'test/compositeGraphRbacManagementClient.json'])
+        self.assertEqual(len(swaggers), 2)
 
     def test_swagger_index_from_composite(self):
         self.assertDictEqual(
