@@ -259,7 +259,7 @@ def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch)
         head_name = branch_name
 
     body = ''
-    rest_api_pr = get_pr_object_from_travis(gh_token)
+    rest_api_pr = get_initial_pr(gh_token)
     if rest_api_pr:
         body += "Generated from RestAPI PR: {}".format(rest_api_pr.html_url)
     try:
