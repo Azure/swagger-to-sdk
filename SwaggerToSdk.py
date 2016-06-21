@@ -211,17 +211,17 @@ def checkout_and_create_branch(repo, name):
     local_branch.checkout()
 
 
-def compute_branch_name(branch_name):
+def compute_branch_name(branch_name, gh_token=None):
     """Compute the branch name depended on Travis, default or not"""
     if branch_name:
         return branch_name
     if not IS_TRAVIS:
         return DEFAULT_BRANCH_NAME
     _LOGGER.info("Travis detected")
-    pr_number = os.environ['TRAVIS_PULL_REQUEST']
-    if pr_number == 'false':
+    pr_object = get_initial_pr(gh_token)
+    if not pr_object:
         return DEFAULT_TRAVIS_BRANCH_NAME.format(branch=os.environ['TRAVIS_BRANCH'])
-    return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_number)
+    return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_object.number)
 
 
 def do_commit(repo, message_template, branch_name, hexsha):
@@ -464,7 +464,7 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
          autorest_dir=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
-    branch_name = compute_branch_name(branch_name)
+    branch_name = compute_branch_name(branch_name, gh_token)
     _LOGGER.info('Destination branch for generated code is %s', branch_name)
 
     with tempfile.TemporaryDirectory() as temp_dir, \
