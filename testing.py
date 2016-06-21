@@ -14,6 +14,11 @@ if not 'GH_TOKEN' in os.environ:
     raise Exception('GH_TOKEN must be defined to do the unitesting')
 GH_TOKEN = os.environ['GH_TOKEN']
 
+def get_pr(repo_id, pr_number):
+    github_client = Github(GH_TOKEN)
+    repo = github_client.get_repo(repo_id)
+    return repo.get_pull(int(pr_number))
+
 class TestSwaggerToSDK(unittest.TestCase):
 
     def setUp(self):
@@ -25,11 +30,6 @@ class TestSwaggerToSDK(unittest.TestCase):
                 del os.environ[key]
 
     def test_get_swagger_project_files_in_pr(self):
-        def get_pr(repo_id, pr_number):
-            anonymous_github_client = Github()
-            repo = anonymous_github_client.get_repo(repo_id)
-            return repo.get_pull(int(pr_number))
-
         swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 361))
         for s in swaggers:
             self.assertIsInstance(s, str)
@@ -59,11 +59,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(files[0], Path('test/compositeGraphRbacManagementClient.json'))
 
     def test_get_pr_files(self):
-        def get_pr(repo_id, pr_number):
-            anonymous_github_client = Github()
-            repo = anonymous_github_client.get_repo(repo_id)
-            return repo.get_pull(int(pr_number))
-
         # Basic test, one Swagger file only
         self.assertSetEqual(
             get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 342)),
