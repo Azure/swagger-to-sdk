@@ -465,23 +465,26 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
          autorest_dir=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
-    branch_name = compute_branch_name(branch_name, gh_token)
-    _LOGGER.info('Destination branch for generated code is %s', branch_name)
 
     with tempfile.TemporaryDirectory() as temp_dir, \
             manage_sdk_folder(gh_token, temp_dir, sdk_git_id) as sdk_folder:
 
         sdk_repo = Repo(sdk_folder)
         if gh_token:
+            branch_name = compute_branch_name(branch_name, gh_token)
+            _LOGGER.info('Destination branch for generated code is %s', branch_name)
             configure_user(gh_token, sdk_repo)
-        try:
-            _LOGGER.info('Try to checkout the destination branch if it already exists')
-            sdk_repo.git.checkout(branch_name)
-        except GitCommandError:
-            _LOGGER.info('Destination branch does not exists')
+            try:
+                _LOGGER.info('Try to checkout the destination branch if it already exists')
+                sdk_repo.git.checkout(branch_name)
+            except GitCommandError:
+                _LOGGER.info('Destination branch does not exists')
+                sdk_repo.git.checkout(base_branch_name)
+            sync_fork(gh_token, sdk_git_id, sdk_repo)
+        else:
+            _LOGGER.info('No token provided, simply checkout base branch')
             sdk_repo.git.checkout(base_branch_name)
 
-        sync_fork(gh_token, sdk_git_id, sdk_repo)
         config = read_config(sdk_repo.working_tree_dir, config_path)
 
         global_conf = config["meta"]
