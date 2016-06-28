@@ -39,8 +39,9 @@ def get_documents_in_composite_file(composite_filepath):
     :params str composite_filepath: The filepath, relative to the repo root or absolute.
     :returns: An iterable of Swagger specs in this composite file
     :rtype: list<str>"""
+    pathconvert = lambda x: x.split('/master/')[1] if x.startswith('https') else x
     with composite_filepath.open() as composite_fd:
-        return [d.split('/master/')[1] for d in json.load(composite_fd)['documents']]
+        return [pathconvert(d) for d in json.load(composite_fd)['documents']]
 
 def find_composite_files(base_dir=Path('.')):
     """Find composite file.

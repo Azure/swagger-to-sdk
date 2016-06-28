@@ -5,6 +5,6 @@
   },
   "documents": [
     "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/master/arm-graphrbac/1.6/swagger/graphrbac.json",
-    "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/master/arm-graphrbac/1.6-internal/swagger/graphrbac.json"
+    "arm-graphrbac/1.6-internal/swagger/graphrbac.json"
   ]
 }
