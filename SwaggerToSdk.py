@@ -39,14 +39,20 @@ def get_documents_in_composite_file(composite_filepath):
     :params str composite_filepath: The filepath, relative to the repo root or absolute.
     :returns: An iterable of Swagger specs in this composite file
     :rtype: list<str>"""
-    pathconvert = lambda x: x.split('/master/')[1] if x.startswith('https') else x
+    def pathconvert(doc_path):
+        if doc_path.startswith('https'):
+            return doc_path.split('/master/')[1]
+        else:
+            return composite_filepath.parent / doc_path
     with composite_filepath.open() as composite_fd:
         return [Path(pathconvert(d)) for d in json.load(composite_fd)['documents']]
 
 def find_composite_files(base_dir=Path('.')):
     """Find composite file.
+
+    The path are relative to base_dir.
     :rtype: pathlib.Path"""
-    return list(Path(base_dir).glob('*/composite*.json'))
+    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('*/composite*.json')]
 
 def swagger_index_from_composite(base_dir=Path('.')):
     """Build a reversed index of the composite files in thie repository.
@@ -62,10 +68,10 @@ def get_swagger_files_in_pr(pr_object):
     return {Path(file.filename) for file in pr_object.get_files()
             if re.match(r".*/swagger/.*\.json", file.filename, re.I)}
 
-def get_swagger_project_files_in_pr(pr_object):
+def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
     """List project files in the PR, a project file being a Composite file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
-    swagger_index = swagger_index_from_composite()
+    swagger_index = swagger_index_from_composite(base_dir)
     swagger_files_in_pr |= {swagger_index[s]
                             for s in swagger_files_in_pr
                             if s in swagger_index}
@@ -127,24 +133,27 @@ def build_autorest_options(language, global_conf, local_conf):
     sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
     return " ".join("-{} {}".format(key, str(merged_options[key])) for key in sorted_keys)
 
-def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_conf=None, local_conf=None):
+def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_conf, local_conf):
     """Call the Autorest process with the given parameters"""
     if NEEDS_MONO:
         autorest_exe_path = 'mono ' + autorest_exe_path
 
     autorest_options = build_autorest_options(language, global_conf, local_conf)
 
+    swagger_path = swagger_file.parent
+
     cmd_line = "{} -i {} -o {} {}"
-    cmd_line = cmd_line.format(autorest_exe_path,
-                               swagger_file,
-                               output_dir,
+    cmd_line = cmd_line.format(str(autorest_exe_path),
+                               str(swagger_file),
+                               str(output_dir),
                                autorest_options)
     _LOGGER.info("Autorest cmd line:\n%s", cmd_line)
 
     try:
         result = subprocess.check_output(cmd_line.split(),
                                          stderr=subprocess.STDOUT,
-                                         universal_newlines=True)
+                                         universal_newlines=True,
+                                         cwd=str(swagger_path))
     except subprocess.CalledProcessError as err:
         _LOGGER.error(err)
         _LOGGER.error(err.output)
@@ -168,19 +177,18 @@ def get_swagger_hexsha(restapi_git_folder):
     return hexsha
 
 
-def update(generated_folder, destination_folder, global_conf, local_conf):
+def update(client_generated_path, destination_folder, global_conf, local_conf):
     """Update data from generated to final folder"""
     wrapper_files_or_dirs = merge_options(global_conf, local_conf, "wrapper_filesOrDirs") or []
     delete_files_or_dirs = merge_options(global_conf, local_conf, "delete_filesOrDirs") or []
     generated_relative_base_directory = local_conf.get('generated_relative_base_directory') or \
         global_conf.get('generated_relative_base_directory')
 
-    client_generated_path = Path(generated_folder)
     if generated_relative_base_directory:
         client_generated_path = next(client_generated_path.glob(generated_relative_base_directory))
 
     for wrapper_file_or_dir in wrapper_files_or_dirs:
-        for file_path in Path(destination_folder).glob(wrapper_file_or_dir):
+        for file_path in destination_folder.glob(wrapper_file_or_dir):
             relative_file_path = file_path.relative_to(destination_folder)
             file_path_dest = client_generated_path.joinpath(str(relative_file_path))
             file_path.replace(file_path_dest)
@@ -192,7 +200,7 @@ def update(generated_folder, destination_folder, global_conf, local_conf):
             else:
                 shutil.rmtree(str(file_path))
 
-    shutil.rmtree(destination_folder)
+    shutil.rmtree(str(destination_folder))
     client_generated_path.replace(destination_folder)
 
 def checkout_and_create_branch(repo, name):
@@ -490,7 +498,8 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
         hexsha = get_swagger_hexsha(restapi_git_folder)
 
         initial_pr = get_initial_pr(gh_token)
-        swagger_files_in_pr = get_swagger_project_files_in_pr(initial_pr) if initial_pr else set()
+        swagger_files_in_pr = get_swagger_project_files_in_pr(initial_pr, restapi_git_folder) if initial_pr else set()
+        _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
 
         autorest_exe_path = install_autorest(temp_dir, global_conf, autorest_dir)
 
@@ -499,32 +508,35 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            if initial_pr and Path(local_conf['swagger']) not in swagger_files_in_pr:
-                _LOGGER.info("Skip file not in PR %s", project)
+            relative_swagger_path = Path(local_conf['swagger'])
+            if initial_pr and relative_swagger_path not in swagger_files_in_pr:
+                _LOGGER.info("Skip project %s since file %s not in PR",
+                             project,
+                             relative_swagger_path)
                 continue
 
-            _LOGGER.info("Working on %s", local_conf['swagger'])
+            _LOGGER.info("Working on %s", relative_swagger_path)
             dest = local_conf['output_dir']
-            swagger_file = os.path.join(restapi_git_folder, local_conf['swagger'])
+            absolute_swagger_path = Path(restapi_git_folder, relative_swagger_path).resolve()
 
-            if not os.path.isfile(swagger_file):
+            if not absolute_swagger_path.is_file():
                 err_msg = "Swagger file does not exist or is not readable: {}".format(
-                    swagger_file)
+                    absolute_swagger_path)
                 _LOGGER.critical(err_msg)
                 raise ValueError(err_msg)
 
-            dest_folder = os.path.join(sdk_repo.working_tree_dir, dest)
-            if not os.path.isdir(dest_folder):
+            dest_folder = Path(sdk_repo.working_tree_dir, dest)
+            if not dest_folder.is_dir():
                 err_msg = "Dest folder does not exist or is not accessible: {}".format(
                     dest_folder)
                 _LOGGER.critical(err_msg)
                 raise ValueError(err_msg)
 
-            generated_path = os.path.join(temp_dir, os.path.basename(swagger_file))
+            absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
             generate_code(language,
-                          swagger_file, generated_path,
+                          absolute_swagger_path, absolute_generated_path,
                           autorest_exe_path, global_conf, local_conf)
-            update(generated_path, dest_folder, global_conf, local_conf)
+            update(absolute_generated_path, dest_folder, global_conf, local_conf)
 
         if gh_token:
             if do_commit(sdk_repo, message_template, branch_name, hexsha):

@@ -1,4 +1,4 @@
-import unittest
+import unittest.mock
 import os
 import logging
 import tempfile
@@ -44,7 +44,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             {
                 Path('arm-graphrbac/1.6/swagger/graphrbac.json'):
                     Path('test/compositeGraphRbacManagementClient.json'),
-                Path('arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
+                Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
                     Path('test/compositeGraphRbacManagementClient.json')
             },
             swagger_index_from_composite()
@@ -55,7 +55,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         documents = get_documents_in_composite_file(composite_path)
         self.assertEqual(len(documents), 2)
         self.assertEqual(documents[0], Path('arm-graphrbac/1.6/swagger/graphrbac.json'))
-        self.assertEqual(documents[1], Path('arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
+        self.assertEqual(documents[1], Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
 
     def test_find_composite_files(self):
         files = find_composite_files()
@@ -77,6 +77,30 @@ class TestSwaggerToSDK(unittest.TestCase):
             get_swagger_files_in_pr(get_pr('Azure/azure-sdk-for-python', 627)),
             set()
         )
+
+    @unittest.mock.patch('subprocess.check_output')
+    def test_generate_code(self, mocked_check_output):
+        generate_code(
+            'Java',
+            Path('/a/b/c/swagger.json'),
+            Path('/x/y/z'),
+            '/f/g/h/autorest.exe',
+            {},
+            {}
+        )
+        call_args = mocked_check_output.call_args
+        expected = ['mono'] if NEEDS_MONO else []
+        expected += [
+            '/f/g/h/autorest.exe',
+            '-i',
+            str(Path('/a/b/c/swagger.json')),
+            '-o',
+            str(Path('/x/y/z')),
+            '-CodeGenerator',
+            'Azure.Java'
+        ]
+        self.assertListEqual(call_args[0][0], expected)
+        self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
 
     def test_do_commit(self):
         finished = False # Authorize PermissionError on cleanup
@@ -254,7 +278,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
             Path(output, 'erase.txt').write_bytes(b'My content')
 
-            update(str(generated), str(output),
+            update(generated, output,
                    {'wrapper_filesOrDirs': [
                        'to_keep.txt',
                        'to_*_pattern.txt',
