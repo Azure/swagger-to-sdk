@@ -41,7 +41,7 @@ def get_documents_in_composite_file(composite_filepath):
     :rtype: list<str>"""
     pathconvert = lambda x: x.split('/master/')[1] if x.startswith('https') else x
     with composite_filepath.open() as composite_fd:
-        return [pathconvert(d) for d in json.load(composite_fd)['documents']]
+        return [Path(pathconvert(d)) for d in json.load(composite_fd)['documents']]
 
 def find_composite_files(base_dir=Path('.')):
     """Find composite file.
@@ -59,25 +59,23 @@ def swagger_index_from_composite(base_dir=Path('.')):
 
 def get_swagger_files_in_pr(pr_object):
     """Get the list of Swagger files in the given PR."""
-    return {file.filename for file in pr_object.get_files()
+    return {Path(file.filename) for file in pr_object.get_files()
             if re.match(r".*/swagger/.*\.json", file.filename, re.I)}
 
 def get_swagger_project_files_in_pr(pr_object):
     """List project files in the PR, a project file being a Composite file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
     swagger_index = swagger_index_from_composite()
-    swagger_files_in_pr |= {str(swagger_index[s]).replace('\\','/')
+    swagger_files_in_pr |= {swagger_index[s]
                             for s in swagger_files_in_pr
                             if s in swagger_index}
     return swagger_files_in_pr
-
 
 def read_config(sdk_git_folder, config_file):
     """Read the configuration file and return JSON"""
     config_path = os.path.join(sdk_git_folder, config_file)
     with open(config_path, 'r') as config_fd:
         return json.loads(config_fd.read())
-
 
 def download_install_autorest(output_dir, autorest_version=LATEST_TAG):
     """Download and install Autorest in the given folder"""
@@ -501,7 +499,7 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            if initial_pr and local_conf['swagger'] not in swagger_files_in_pr:
+            if initial_pr and Path(local_conf['swagger']) not in swagger_files_in_pr:
                 _LOGGER.info("Skip file not in PR %s", project)
                 continue
 

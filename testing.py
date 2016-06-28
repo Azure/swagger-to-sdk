@@ -32,16 +32,19 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_get_swagger_project_files_in_pr(self):
         swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 361))
         for s in swaggers:
-            self.assertIsInstance(s, str)
-            self.assertIn(s, ['arm-graphrbac/1.6/swagger/graphrbac.json', 'test/compositeGraphRbacManagementClient.json'])
+            self.assertIsInstance(s, Path)
+            self.assertIn(s, [
+                Path('arm-graphrbac/1.6/swagger/graphrbac.json'),
+                Path('test/compositeGraphRbacManagementClient.json')
+            ])
         self.assertEqual(len(swaggers), 2)
 
     def test_swagger_index_from_composite(self):
         self.assertDictEqual(
             {
-                'arm-graphrbac/1.6/swagger/graphrbac.json':
+                Path('arm-graphrbac/1.6/swagger/graphrbac.json'):
                     Path('test/compositeGraphRbacManagementClient.json'),
-                'arm-graphrbac/1.6-internal/swagger/graphrbac.json':
+                Path('arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
                     Path('test/compositeGraphRbacManagementClient.json')
             },
             swagger_index_from_composite()
@@ -51,8 +54,8 @@ class TestSwaggerToSDK(unittest.TestCase):
         composite_path = Path('test/compositeGraphRbacManagementClient.json')
         documents = get_documents_in_composite_file(composite_path)
         self.assertEqual(len(documents), 2)
-        self.assertEqual(documents[0], 'arm-graphrbac/1.6/swagger/graphrbac.json')
-        self.assertEqual(documents[1], 'arm-graphrbac/1.6-internal/swagger/graphrbac.json')
+        self.assertEqual(documents[0], Path('arm-graphrbac/1.6/swagger/graphrbac.json'))
+        self.assertEqual(documents[1], Path('arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
 
     def test_find_composite_files(self):
         files = find_composite_files()
@@ -62,12 +65,12 @@ class TestSwaggerToSDK(unittest.TestCase):
         # Basic test, one Swagger file only
         self.assertSetEqual(
             get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 342)),
-            {'search/2015-02-28-Preview/swagger/searchservice.json'}
+            {Path('search/2015-02-28-Preview/swagger/searchservice.json')}
         )
         # This PR contains a schema and a Swagger, I just want the swagger
         self.assertSetEqual(
             get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 341)),
-            {'arm-mobileengagement/2014-12-01/swagger/mobile-engagement.json'}
+            {Path('arm-mobileengagement/2014-12-01/swagger/mobile-engagement.json')}
         )
         # Should not find Swagger and not fails
         self.assertSetEqual(
