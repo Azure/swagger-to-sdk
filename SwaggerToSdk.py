@@ -21,7 +21,7 @@ from github import Github, GithubException
 _LOGGER = logging.getLogger(__name__)
 
 LATEST_TAG = 'latest'
-AUTOREST_BASE_DOWNLOAD_LINK = "https://www.myget.org/F/autorest/api/v2/package/autorest/"
+AUTOREST_BASE_DOWNLOAD_LINK = "https://www.myget.org/F/autorest/api/v2/package/AutoRest/"
 
 CONFIG_FILE = 'swagger_to_sdk_config.json'
 NEEDS_MONO = platform.system() != 'Windows'
