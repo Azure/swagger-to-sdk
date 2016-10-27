@@ -388,6 +388,10 @@ def sync_fork(gh_token, github_repo_id, repo):
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(github_repo_id)
 
+    if not github_repo.parent:
+        _LOGGER.warning('This repo has no upstream')
+        return
+
     upstream_url = 'https://github.com/{}.git'.format(github_repo.parent.full_name)
     upstream = repo.create_remote('upstream', url=upstream_url)
     upstream.fetch()
