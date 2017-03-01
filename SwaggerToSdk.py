@@ -121,7 +121,7 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
 
     swagger_path = swagger_file.parent
 
-    cmd_line = "autorest --version={} -i {} -o {} {}"
+    cmd_line = "autorest --version={} -SkipValidation -i {} -o {} {}"
     cmd_line = cmd_line.format(str(autorest_version),
                                str(swagger_file),
                                str(output_dir),

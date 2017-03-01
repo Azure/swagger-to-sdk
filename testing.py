@@ -91,6 +91,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         expected = [
             'autorest',
             '--version=latest',
+            '-SkipValidation',
             '-i',
             str(Path('/a/b/c/swagger.json')),
             '-o',
