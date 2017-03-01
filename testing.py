@@ -84,14 +84,13 @@ class TestSwaggerToSDK(unittest.TestCase):
             'Java',
             Path('/a/b/c/swagger.json'),
             Path('/x/y/z'),
-            '/f/g/h/autorest.exe',
             {},
             {}
         )
         call_args = mocked_check_output.call_args
-        expected = ['mono'] if NEEDS_MONO else []
-        expected += [
-            '/f/g/h/autorest.exe',
+        expected = [
+            'autorest',
+            '--version=latest',
             '-i',
             str(Path('/a/b/c/swagger.json')),
             '-o',
@@ -167,28 +166,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         os.environ['TRAVIS_COMMIT'] = 'c290e668f17b45be6619f9133c0f15af19144280'
         pr_obj = get_pr_from_travis_commit_sha(GH_TOKEN)
         self.assertIsNone(pr_obj)
-
-    def test_install_autorest(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            exe_path = install_autorest(temp_dir)
-            self.assertTrue(exe_path.lower().endswith("autorest.exe"))
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            exe_path = install_autorest(temp_dir, {'autorest': "0.16.0-Nightly20160410"})
-            self.assertTrue(exe_path.lower().endswith("autorest.exe"))
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            Path(temp_dir, 'AutoRest.exe').write_text("I'm not a virus")
-            exe_path = install_autorest(temp_dir, autorest_dir=temp_dir)
-            self.assertTrue(exe_path.lower().endswith("autorest.exe"))
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(ValueError):
-                install_autorest(temp_dir, {'autorest': "0.16.0-FakePackage"})
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(ValueError):
-                install_autorest(temp_dir, autorest_dir=temp_dir)
 
     def test_build_autorest_options(self):
         line = build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})

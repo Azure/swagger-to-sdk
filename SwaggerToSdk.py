@@ -21,10 +21,8 @@ from github import Github, GithubException
 _LOGGER = logging.getLogger(__name__)
 
 LATEST_TAG = 'latest'
-AUTOREST_BASE_DOWNLOAD_LINK = "https://www.myget.org/F/autorest/api/v2/package/AutoRest/"
 
 CONFIG_FILE = 'swagger_to_sdk_config.json'
-NEEDS_MONO = platform.system() != 'Windows'
 
 DEFAULT_BRANCH_NAME = 'autorest'
 DEFAULT_TRAVIS_PR_BRANCH_NAME = 'RestAPI-PR{number}'
@@ -89,30 +87,6 @@ def read_config(sdk_git_folder, config_file):
     with open(config_path, 'r') as config_fd:
         return json.loads(config_fd.read())
 
-def download_install_autorest(output_dir, autorest_version=LATEST_TAG):
-    """Download and install Autorest in the given folder"""
-    download_link = AUTOREST_BASE_DOWNLOAD_LINK
-    if autorest_version != LATEST_TAG:
-        download_link += autorest_version
-
-    _LOGGER.info("Download Autorest from: %s", download_link)
-    try:
-        downloaded_package = requests.get(download_link)
-    except:
-        msg = "Unable to download Autorest for '{}', " \
-                "please check this link and/or version tag: {}".format(
-                    autorest_version,
-                    download_link
-                )
-        _LOGGER.critical(msg)
-        raise ValueError(msg)
-    if downloaded_package.status_code != 200:
-        raise ValueError(downloaded_package.content.decode())
-    _LOGGER.info("Downloaded")
-    with zipfile.ZipFile(BytesIO(downloaded_package.content)) as autorest_package:
-        autorest_package.extractall(output_dir)
-    return os.path.join(output_dir, 'tools', 'AutoRest.exe')
-
 def merge_options(global_conf, local_conf, key):
     """Merge the conf using override: local conf is prioritary over global"""
     global_keyed_conf = global_conf.get(key) # Could be None
@@ -139,17 +113,16 @@ def build_autorest_options(language, global_conf, local_conf):
     sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
     return " ".join("-{} {}".format(key, str(merged_options[key])) for key in sorted_keys)
 
-def generate_code(language, swagger_file, output_dir, autorest_exe_path, global_conf, local_conf):
+def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
     """Call the Autorest process with the given parameters"""
-    if NEEDS_MONO:
-        autorest_exe_path = 'mono ' + autorest_exe_path
 
     autorest_options = build_autorest_options(language, global_conf, local_conf)
+    autorest_version = global_conf.get("autorest", LATEST_TAG)
 
     swagger_path = swagger_file.parent
 
-    cmd_line = "{} -i {} -o {} {}"
-    cmd_line = cmd_line.format(str(autorest_exe_path),
+    cmd_line = "autorest --version={} -i {} -o {} {}"
+    cmd_line = cmd_line.format(str(autorest_version),
                                str(swagger_file),
                                str(output_dir),
                                autorest_options)
@@ -455,27 +428,6 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
         _LOGGER.debug("Preclean SDK folder")
         shutil.rmtree(sdk_path, onerror=remove_readonly)
 
-def install_autorest(temp_dir, global_conf=None, autorest_dir=None):
-    """ Return an AutoRest.exe path.
-    Either download using temp_dir and conf, either check presence in
-    autorest_dir. IF autorest_dir is provided, AutoRest.exe must be found inside.
-    """
-    if autorest_dir:
-        autorest_path = Path(autorest_dir, 'AutoRest.exe')
-        if autorest_path.exists():
-            return str(autorest_path)
-        raise ValueError('{} does not exists'.format(autorest_path))
-
-    if global_conf is None:
-        global_conf = {}
-    autorest_version = global_conf.get("autorest", LATEST_TAG)
-
-    autorest_temp_dir = os.path.join(temp_dir, 'autorest')
-    os.mkdir(autorest_temp_dir)
-
-    return download_install_autorest(autorest_temp_dir, autorest_version)
-
-
 def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
          sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
          autorest_dir=None):
@@ -511,8 +463,6 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
         swagger_files_in_pr = get_swagger_project_files_in_pr(initial_pr, restapi_git_folder) if initial_pr else set()
         _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
 
-        autorest_exe_path = install_autorest(temp_dir, global_conf, autorest_dir)
-
         for project, local_conf in config["projects"].items():
             if project_pattern and not any(project.startswith(p) for p in project_pattern):
                 _LOGGER.info("Skip project %s", project)
@@ -545,7 +495,7 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
             absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
             generate_code(language,
                           absolute_swagger_path, absolute_generated_path,
-                          autorest_exe_path, global_conf, local_conf)
+                          global_conf, local_conf)
             update(absolute_generated_path, dest_folder, global_conf, local_conf)
 
         if gh_token:
