@@ -90,7 +90,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         call_args = mocked_check_output.call_args
         expected = [
             'autorest',
-            '--debug',
+            '--verbose',
             '--version=latest',
             '-SkipValidation',
             '-i',
