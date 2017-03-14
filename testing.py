@@ -83,7 +83,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         generate_code(
             'Java',
             Path('/a/b/c/swagger.json'),
-            Path('/x/y/z'),
+            Path('/'),
             {},
             {}
         )
@@ -95,12 +95,25 @@ class TestSwaggerToSDK(unittest.TestCase):
             '-i',
             str(Path('/a/b/c/swagger.json')),
             '-o',
-            str(Path('/x/y/z')),
+            str(Path('/')),
             '-CodeGenerator',
             'Azure.Java'
         ]
         self.assertListEqual(call_args[0][0], expected)
         self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
+
+    @unittest.mock.patch('subprocess.check_output')
+    def test_generate_code_fail(self, mocked_check_output):
+        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm:
+            generate_code(
+                'Java',
+                Path('/a/b/c/swagger.json'),
+                Path(temp_dir),
+                {},
+                {}
+            )
+        the_exception = cm.exception
+        self.assertTrue("no files were generated" in str(the_exception))
 
     def test_do_commit(self):
         finished = False # Authorize PermissionError on cleanup

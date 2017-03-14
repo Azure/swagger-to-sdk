@@ -142,6 +142,9 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
         raise
     else:
         _LOGGER.info(result)
+    # Checks that Autorest did something!
+    if not list(output_dir.iterdir()):
+        raise ValueError("Autorest call ended with 0, but no files were generated")
 
 
 def get_swagger_hexsha(restapi_git_folder):
