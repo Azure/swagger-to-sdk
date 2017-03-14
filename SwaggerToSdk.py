@@ -143,7 +143,7 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
     else:
         _LOGGER.info(result)
     # Checks that Autorest did something!
-    if not list(output_dir.iterdir()):
+    if not output_dir.is_dir() or next(output_dir.iterdir(), None) is None:
         raise ValueError("Autorest call ended with 0, but no files were generated")
 
 
