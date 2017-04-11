@@ -10,6 +10,7 @@ import argparse
 import json
 import zipfile
 import re
+import shutil
 from io import BytesIO
 from pathlib import Path
 from contextlib import contextmanager
@@ -121,7 +122,7 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
 
     swagger_path = swagger_file.parent
 
-    cmd_line = "autorest --version={} -SkipValidation -i {} -o {} {}"
+    cmd_line = shutil.which("autorest") + " --version={} -SkipValidation -i {} -o {} {}"
     cmd_line = cmd_line.format(str(autorest_version),
                                str(swagger_file),
                                str(output_dir),
@@ -173,7 +174,9 @@ def update(client_generated_path, destination_folder, global_conf, local_conf):
         for file_path in destination_folder.glob(wrapper_file_or_dir):
             relative_file_path = file_path.relative_to(destination_folder)
             file_path_dest = client_generated_path.joinpath(str(relative_file_path))
-            file_path.replace(file_path_dest)
+            # This does not work in Windows if generatd and dest are not in the same drive
+            # file_path.replace(file_path_dest)
+            shutil.move(file_path, file_path_dest)
 
     for delete_file_or_dir in delete_files_or_dirs:
         for file_path in client_generated_path.glob(delete_file_or_dir):
@@ -183,7 +186,9 @@ def update(client_generated_path, destination_folder, global_conf, local_conf):
                 shutil.rmtree(str(file_path))
 
     shutil.rmtree(str(destination_folder))
-    client_generated_path.replace(destination_folder)
+    # This does not work in Windows if generatd and dest are not in the same drive
+    # client_generated_path.replace(destination_folder)
+    shutil.move(client_generated_path, destination_folder)
 
 def checkout_and_create_branch(repo, name):
     """Checkout branch. Create it if necessary"""
