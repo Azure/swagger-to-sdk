@@ -114,7 +114,7 @@ def build_autorest_options(language, global_conf, local_conf):
     sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
     return " ".join("-{} {}".format(key, str(merged_options[key])) for key in sorted_keys)
 
-def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
+def generate_code(language, swagger_file, output_dir, global_conf, local_conf, autorest_bin=None):
     """Call the Autorest process with the given parameters"""
 
     autorest_options = build_autorest_options(language, global_conf, local_conf)
@@ -122,7 +122,10 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
 
     swagger_path = swagger_file.parent
 
-    cmd_line = shutil.which("autorest") + " --version={} -i {} -o {} {}"
+    if not autorest_bin:
+        autorest_bin = shutil.which("autorest")
+
+    cmd_line = autorest_bin + " --version={} -i {} -o {} {}"
     cmd_line = cmd_line.format(str(autorest_version),
                                str(swagger_file),
                                str(output_dir),
@@ -451,7 +454,7 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
 
 def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
          sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
-         autorest_dir=None):
+         autorest_bin=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
 
@@ -516,7 +519,8 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
             absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
             generate_code(language,
                           absolute_swagger_path, absolute_generated_path,
-                          global_conf, local_conf)
+                          global_conf, local_conf,
+                          autorest_bin)
             update(absolute_generated_path, dest_folder, global_conf, local_conf)
 
         if gh_token:
@@ -569,8 +573,8 @@ def main():
                         dest='config_path', default=CONFIG_FILE,
                         help='The JSON configuration format path [default: %(default)s]')
     parser.add_argument('--autorest',
-                        dest='autorest_dir',
-                        help='Force the Autorest to be executed. Must be a directory containing Autorest.exe')
+                        dest='autorest_bin',
+                        help='Force the Autorest to be executed. Must be a executable command.')
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action="store_true",
                         help="Verbosity in INFO mode")
@@ -600,7 +604,7 @@ def main():
                     args.restapi_git_folder, args.sdk_git_id,
                     args.pr_repo_id,
                     args.message, args.base_branch, args.branch,
-                    args.autorest_dir)
+                    args.autorest_bin)
 
 if __name__ == "__main__":
     main()

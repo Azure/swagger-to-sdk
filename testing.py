@@ -85,11 +85,13 @@ class TestSwaggerToSDK(unittest.TestCase):
             Path('/a/b/c/swagger.json'),
             Path('/'),
             {},
-            {}
+            {},
+            "node myautorest"
         )
         call_args = mocked_check_output.call_args
         expected = [
-            shutil.which("autorest"),
+            'node',
+            'myautorest',
             '--version=latest',
             '-i',
             str(Path('/a/b/c/swagger.json')),
