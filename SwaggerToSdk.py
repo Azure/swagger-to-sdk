@@ -122,7 +122,7 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf):
 
     swagger_path = swagger_file.parent
 
-    cmd_line = shutil.which("autorest") + " --version={} -SkipValidation -i {} -o {} {}"
+    cmd_line = shutil.which("autorest") + " --version={} -i {} -o {} {}"
     cmd_line = cmd_line.format(str(autorest_version),
                                str(swagger_file),
                                str(output_dir),
@@ -168,7 +168,20 @@ def update(client_generated_path, destination_folder, global_conf, local_conf):
         global_conf.get('generated_relative_base_directory')
 
     if generated_relative_base_directory:
-        client_generated_path = next(client_generated_path.glob(generated_relative_base_directory))
+        client_possible_path = [elt for elt in client_generated_path.glob(generated_relative_base_directory) if elt.is_dir()]
+        try:
+            client_generated_path = client_possible_path.pop()
+        except IndexError:
+            err_msg = "Incorrect generated_relative_base_directory folder: {}".format(generated_relative_base_directory)
+            _LOGGER.critical(err_msg)
+            raise ValueError(err_msg)
+        if client_possible_path:
+            err_msg = "generated_relative_base_directory parameter is ambiguous: {} {}".format(
+                client_generated_path,
+                client_possible_path
+            )
+            _LOGGER.critical(err_msg)
+            raise ValueError(err_msg)
 
     for wrapper_file_or_dir in wrapper_files_or_dirs:
         for file_path in destination_folder.glob(wrapper_file_or_dir):

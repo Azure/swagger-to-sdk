@@ -89,9 +89,8 @@ class TestSwaggerToSDK(unittest.TestCase):
         )
         call_args = mocked_check_output.call_args
         expected = [
-            'autorest',
+            shutil.which("autorest"),
             '--version=latest',
-            '-SkipValidation',
             '-i',
             str(Path('/a/b/c/swagger.json')),
             '-o',
