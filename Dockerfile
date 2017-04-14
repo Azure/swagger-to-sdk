@@ -5,7 +5,7 @@ MAINTAINER lmazuel
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 417A0893
 
 # Basic Ubuntu packages
-RUN apt-get update && apt-get install -y curl git software-properties-common
+RUN apt-get update && apt-get install -y curl git software-properties-common locales
 
 # NodeJS
 RUN curl -sL https://deb.nodesource.com/setup_6.x | bash - && \
