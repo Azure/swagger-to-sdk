@@ -124,6 +124,8 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf, a
 
     if not autorest_bin:
         autorest_bin = shutil.which("autorest")
+    if not autorest_bin:
+        raise ValueError("No autorest found in PATH and no autorest path option used")
 
     cmd_line = autorest_bin + " --version={} -i {} -o {} {}"
     cmd_line = cmd_line.format(str(autorest_version),
