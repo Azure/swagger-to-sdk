@@ -5,6 +5,8 @@ The SwaggerToSDK script is the automation script launched at each commit on any 
 - Testing against SDK language
 - Automatic PR on each language SDK
 
+This is Python 3.6 only.
+
 This works is still in progress and move fast. We'll do our best to keep this page up-to-date.
 
 # Configuration of the script

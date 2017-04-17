@@ -85,13 +85,14 @@ class TestSwaggerToSDK(unittest.TestCase):
             Path('/a/b/c/swagger.json'),
             Path('/'),
             {},
-            {}
+            {},
+            "node myautorest"
         )
         call_args = mocked_check_output.call_args
         expected = [
-            'autorest',
+            'node',
+            'myautorest',
             '--version=latest',
-            '-SkipValidation',
             '-i',
             str(Path('/a/b/c/swagger.json')),
             '-o',
@@ -103,6 +104,22 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
 
     @unittest.mock.patch('subprocess.check_output')
+    def test_generate_code_no_autorest_in_path(self, mocked_check_output):
+        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm, unittest.mock.patch('shutil.which') as which:
+            which.return_value = None
+            generate_code(
+                'Java',
+                Path('/a/b/c/swagger.json'),
+                Path(temp_dir),
+                {},
+                {}
+            )
+        the_exception = cm.exception
+        print(str(the_exception))
+        print(str(shutil.which("autorest")))
+        self.assertTrue("No autorest found in PATH and no autorest path option used" in str(the_exception))
+
+    @unittest.mock.patch('subprocess.check_output')
     def test_generate_code_fail(self, mocked_check_output):
         with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm:
             generate_code(
@@ -110,7 +127,8 @@ class TestSwaggerToSDK(unittest.TestCase):
                 Path('/a/b/c/swagger.json'),
                 Path(temp_dir),
                 {},
-                {}
+                {},
+                "node autorest"
             )
         the_exception = cm.exception
         self.assertTrue("no files were generated" in str(the_exception))
