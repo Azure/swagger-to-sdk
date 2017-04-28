@@ -11,6 +11,7 @@ import json
 import zipfile
 import re
 import shutil
+import datetime
 from io import BytesIO
 from pathlib import Path
 from contextlib import contextmanager
@@ -31,6 +32,22 @@ DEFAULT_TRAVIS_BRANCH_NAME = 'RestAPI-{branch}'
 DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
+
+def build_file_content(autorest_version):
+    utc_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()+'Z'
+    if autorest_version=='latest':
+        autorest_version = autorest_latest_version_finder()
+    return {
+        'autorest': autorest_version,
+        'date': utc_time,
+        'version': ''
+    }
+
+def autorest_latest_version_finder():
+    npm_root = subprocess.check_output("npm root -g", shell=True).decode().strip()
+    autorest_path = os.path.join(npm_root, 'autorest').replace("\\","/")
+    cmd = ["node", "-p", "require('{}').Installer.LatestAutorestVersion".format(autorest_path)]
+    return subprocess.check_output(cmd, shell=True).decode().strip()
 
 def get_documents_in_composite_file(composite_filepath):
     """Get the documents inside this composite file, relative to the repo root.
@@ -165,8 +182,11 @@ def get_swagger_hexsha(restapi_git_folder):
     return hexsha
 
 
-def update(client_generated_path, destination_folder, global_conf, local_conf):
+def update(client_generated_path, sdk_root, global_conf, local_conf):
     """Update data from generated to final folder"""
+    dest = local_conf['output_dir']
+    destination_folder = get_sdk_local_path(sdk_root, dest)
+
     wrapper_files_or_dirs = merge_options(global_conf, local_conf, "wrapper_filesOrDirs") or []
     delete_files_or_dirs = merge_options(global_conf, local_conf, "delete_filesOrDirs") or []
     generated_relative_base_directory = local_conf.get('generated_relative_base_directory') or \
@@ -207,6 +227,23 @@ def update(client_generated_path, destination_folder, global_conf, local_conf):
     # This does not work in Windows if generatd and dest are not in the same drive
     # client_generated_path.replace(destination_folder)
     shutil.move(client_generated_path, destination_folder)
+
+    build_dir = local_conf.get('build_dir')
+    if build_dir:
+        build_folder = get_sdk_local_path(sdk_root, build_dir)
+        build_file = Path(build_folder, "build.json")
+        autorest_version = global_conf.get("autorest", LATEST_TAG)
+        with open(build_file, 'w') as build_fd:
+            json.dump(build_file_content(autorest_version), build_fd)
+
+def get_sdk_local_path(sdk_root, relative_path):
+    build_folder = Path(sdk_root, relative_path)
+    if not build_folder.is_dir():
+        err_msg = "Folder does not exist or is not accessible: {}".format(
+            build_folder)
+        _LOGGER.critical(err_msg)
+        raise ValueError(err_msg)
+    return build_folder
 
 def checkout_and_create_branch(repo, name):
     """Checkout branch. Create it if necessary"""
@@ -502,7 +539,6 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 continue
 
             _LOGGER.info("Working on %s", relative_swagger_path)
-            dest = local_conf['output_dir']
             absolute_swagger_path = Path(restapi_git_folder, relative_swagger_path).resolve()
 
             if not absolute_swagger_path.is_file():
@@ -511,19 +547,12 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 _LOGGER.critical(err_msg)
                 raise ValueError(err_msg)
 
-            dest_folder = Path(sdk_repo.working_tree_dir, dest)
-            if not dest_folder.is_dir():
-                err_msg = "Dest folder does not exist or is not accessible: {}".format(
-                    dest_folder)
-                _LOGGER.critical(err_msg)
-                raise ValueError(err_msg)
-
             absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
             generate_code(language,
                           absolute_swagger_path, absolute_generated_path,
                           global_conf, local_conf,
                           autorest_bin)
-            update(absolute_generated_path, dest_folder, global_conf, local_conf)
+            update(absolute_generated_path, sdk_repo.working_tree_dir, global_conf, local_conf)
 
         if gh_token:
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
