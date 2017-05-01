@@ -35,7 +35,7 @@ IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
 def build_file_content(autorest_version):
     utc_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()+'Z'
-    if autorest_version=='latest':
+    if autorest_version==LATEST_TAG:
         autorest_version = autorest_latest_version_finder()
     return {
         'autorest': autorest_version,
@@ -44,9 +44,9 @@ def build_file_content(autorest_version):
     }
 
 def autorest_latest_version_finder():
-    npm_root = subprocess.check_output("npm root -g", shell=True).decode().strip()
-    autorest_path = os.path.join(npm_root, 'autorest').replace("\\","/")
-    cmd = ["node", "-p", "require('{}').Installer.LatestAutorestVersion".format(autorest_path)]
+    my_folder = os.path.dirname(__file__)
+    script_path = os.path.join(my_folder, "get_autorest_version.js")
+    cmd = ["node", script_path]
     return subprocess.check_output(cmd, shell=True).decode().strip()
 
 def get_documents_in_composite_file(composite_filepath):
