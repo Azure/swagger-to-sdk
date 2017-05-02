@@ -19,22 +19,25 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            relative_swagger_path = Path(local_conf['swagger'])
+            main_input_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
 
-            _LOGGER.info("Working on %s", relative_swagger_path)
-            dest = local_conf['output_dir']
-            absolute_swagger_path = Path(restapi_git_folder, relative_swagger_path).resolve()
+            _LOGGER.info("Main input: %s", main_input_relative_path)
+            _LOGGER.info("Optional inputs: %s", optional_relative_paths)
 
-            if not absolute_swagger_path.is_file():
-                err_msg = "Swagger file does not exist or is not readable: {}".format(
-                    absolute_swagger_path)
-                _LOGGER.critical(err_msg)
-                raise ValueError(err_msg)
+            absolute_input_path = Path(restapi_git_folder, main_input_relative_path).resolve()
+            if optional_relative_paths:
+                local_conf['input-file'] = [
+                    Path(restapi_git_folder, input_path).resolve()
+                    for input_path
+                    in optional_relative_paths
+                ]
 
-            absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
+            absolute_generated_path = Path(temp_dir, "Generated")
             generate_code(language,
-                          absolute_swagger_path, absolute_generated_path,
-                          global_conf, local_conf,
+                          absolute_input_path,
+                          absolute_generated_path,
+                          global_conf,
+                          local_conf,
                           autorest_bin)
             update(absolute_generated_path, sdk_folder, global_conf, local_conf)
 

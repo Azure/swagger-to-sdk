@@ -121,8 +121,11 @@ def merge_options(global_conf, local_conf, key):
     options.update(local_keyed_conf)
     return options
 
-def build_autorest_options(language, global_conf, local_conf):
-    """Build the string of the Autorest options"""
+def is_new_markdown_cli(global_conf):
+    return bool(global_conf.get("autorest_markdown_cli"))
+
+def legacy_build_autorest_options(language, global_conf, local_conf):
+    """Build the string of the Autorest options, legacy"""
     merged_options = merge_options(global_conf, local_conf, "autorest_options") or {}
 
     if "CodeGenerator" not in merged_options:
@@ -131,31 +134,54 @@ def build_autorest_options(language, global_conf, local_conf):
     sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
     return " ".join("-{} {}".format(key, str(merged_options[key])) for key in sorted_keys)
 
-def generate_code(language, swagger_file, output_dir, global_conf, local_conf, autorest_bin=None):
+def build_autorest_options(global_conf, local_conf):
+    """Build the string of the Autorest options"""
+    merged_options = merge_options(global_conf, local_conf, "autorest_options") or {}
+    value = lambda x: "={}".format(x) if x else ""
+    listify = lambda x: x if isinstance(x, list) else [x]
+
+    sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
+    return " ".join(
+        "--{}{}".format(key.lower(), value(str(option)))
+        for key in sorted_keys
+        for option in listify(merged_options[key])
+    )
+
+def generate_code(language, input_file, output_dir, global_conf, local_conf, autorest_bin=None):
     """Call the Autorest process with the given parameters"""
 
-    autorest_options = build_autorest_options(language, global_conf, local_conf)
     autorest_version = global_conf.get("autorest", LATEST_TAG)
 
-    swagger_path = swagger_file.parent
+    input_path = input_file.parent
 
     if not autorest_bin:
         autorest_bin = shutil.which("autorest")
     if not autorest_bin:
         raise ValueError("No autorest found in PATH and no autorest path option used")
 
-    cmd_line = autorest_bin + " --version={} -i {} -o {} {}"
-    cmd_line = cmd_line.format(str(autorest_version),
-                               str(swagger_file),
-                               str(output_dir),
-                               autorest_options)
+    # Legacy CLI
+    if not is_new_markdown_cli(global_conf):
+        params = "-i {} -o {} {}".format(
+            str(input_file),
+            str(output_dir),
+            legacy_build_autorest_options(language, global_conf, local_conf)
+        )
+    else:
+        params = "{} --output-folder={} {}".format(
+            str(input_file) if input_file else "",
+            str(output_dir),
+            build_autorest_options(global_conf, local_conf)
+        )
+
+    cmd_line = autorest_bin + " --version={} {}"
+    cmd_line = cmd_line.format(str(autorest_version), params)
     _LOGGER.info("Autorest cmd line:\n%s", cmd_line)
 
     try:
         result = subprocess.check_output(cmd_line.split(),
                                          stderr=subprocess.STDOUT,
                                          universal_newlines=True,
-                                         cwd=str(swagger_path))
+                                         cwd=str(input_path))
     except subprocess.CalledProcessError as err:
         _LOGGER.error(err)
         _LOGGER.error(err.output)
@@ -185,7 +211,7 @@ def get_swagger_hexsha(restapi_git_folder):
 def update(client_generated_path, sdk_root, global_conf, local_conf):
     """Update data from generated to final folder"""
     dest = local_conf['output_dir']
-    destination_folder = get_sdk_local_path(sdk_root, dest)
+    destination_folder = get_local_path_dir(sdk_root, dest)
 
     wrapper_files_or_dirs = merge_options(global_conf, local_conf, "wrapper_filesOrDirs") or []
     delete_files_or_dirs = merge_options(global_conf, local_conf, "delete_filesOrDirs") or []
@@ -230,14 +256,14 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
 
     build_dir = local_conf.get('build_dir')
     if build_dir:
-        build_folder = get_sdk_local_path(sdk_root, build_dir)
+        build_folder = get_local_path_dir(sdk_root, build_dir)
         build_file = Path(build_folder, "build.json")
         autorest_version = global_conf.get("autorest", LATEST_TAG)
         with open(build_file, 'w') as build_fd:
             json.dump(build_file_content(autorest_version), build_fd)
 
-def get_sdk_local_path(sdk_root, relative_path):
-    build_folder = Path(sdk_root, relative_path)
+def get_local_path_dir(root, relative_path):
+    build_folder = Path(root, relative_path)
     if not build_folder.is_dir():
         err_msg = "Folder does not exist or is not accessible: {}".format(
             build_folder)
@@ -491,6 +517,27 @@ def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
         _LOGGER.debug("Preclean SDK folder")
         shutil.rmtree(sdk_path, onerror=remove_readonly)
 
+def get_input_paths(global_conf, local_conf):
+
+    if is_new_markdown_cli(global_conf):
+        relative_markdown_path = None # Markdown is optional
+        input_files = [] # Input file could be empty
+        if "markdown" in local_conf:
+            relative_markdown_path = Path(local_conf['markdown'])
+        input_files = local_conf.get('autorest_options', {}).get('input-file', [])
+        if input_files and not isinstance(input_files, list):
+            input_files = [input_files]
+        if "swagger" in local_conf:
+            swagger_str_path = local_conf.get('swagger')
+            if swagger_str_path:
+                input_files.append(swagger_str_path)
+        input_files = [Path(input_file) for input_file in input_files]
+        if not relative_markdown_path and not input_files:
+            raise ValueError("No input file found")
+        return (relative_markdown_path, input_files)
+    else:
+        return (Path(local_conf['swagger']), [])
+
 def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
          sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
          autorest_bin=None):
@@ -531,26 +578,32 @@ def build_libraries(gh_token, config_path, project_pattern, restapi_git_folder,
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            relative_swagger_path = Path(local_conf['swagger'])
-            if initial_pr and relative_swagger_path not in swagger_files_in_pr:
-                _LOGGER.info("Skip project %s since file %s not in PR",
-                             project,
-                             relative_swagger_path)
+            main_input_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
+
+            if initial_pr and not (
+                    main_input_relative_path in swagger_files_in_pr or
+                    any(input_file in swagger_files_in_pr for input_file in optional_relative_paths)):
+                _LOGGER.info("Skip project %s since no files involved in this PR",
+                            project)
                 continue
 
-            _LOGGER.info("Working on %s", relative_swagger_path)
-            absolute_swagger_path = Path(restapi_git_folder, relative_swagger_path).resolve()
+            _LOGGER.info("Main input: %s", main_input_relative_path)
+            _LOGGER.info("Optional inputs: %s", optional_relative_paths)
 
-            if not absolute_swagger_path.is_file():
-                err_msg = "Swagger file does not exist or is not readable: {}".format(
-                    absolute_swagger_path)
-                _LOGGER.critical(err_msg)
-                raise ValueError(err_msg)
+            absolute_input_path = Path(restapi_git_folder, main_input_relative_path).resolve()
+            if optional_relative_paths:
+                local_conf.setdefault('autorest_options', {})['input-file'] = [
+                    Path(restapi_git_folder, input_path).resolve()
+                    for input_path
+                    in optional_relative_paths
+                ]
 
-            absolute_generated_path = Path(temp_dir, relative_swagger_path.name)
+            absolute_generated_path = Path(temp_dir, "Generated")
             generate_code(language,
-                          absolute_swagger_path, absolute_generated_path,
-                          global_conf, local_conf,
+                          absolute_input_path,
+                          absolute_generated_path,
+                          global_conf,
+                          local_conf,
                           autorest_bin)
             update(absolute_generated_path, sdk_repo.working_tree_dir, global_conf, local_conf)
 
