@@ -269,6 +269,12 @@ class TestSwaggerToSDK(unittest.TestCase):
 
         # FIXME - more tests
 
+    def test_build(self):
+        build = build_file_content('123')
+        self.assertEqual('123', build['autorest'])
+        self.assertEqual('', build['version'])
+        self.assertTrue(build['date'].startswith("20"))
+
     def test_update(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             generated = Path(temp_dir, 'generated')
@@ -287,7 +293,8 @@ class TestSwaggerToSDK(unittest.TestCase):
             Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
             Path(output, 'erase.txt').write_bytes(b'My content')
 
-            update(generated, output,
+            update(generated,
+                   output,
                    {'wrapper_filesOrDirs': [
                        'to_keep.txt',
                        'to_*_pattern.txt',
@@ -299,16 +306,25 @@ class TestSwaggerToSDK(unittest.TestCase):
                         'dont_exist_no_big_deal_2.txt',
                         'del_folder'
                     ],
-                    'generated_relative_base_directory': '*side'}, {}
+                    'generated_relative_base_directory': '*side',
+                    'autorest': '123'}, 
+                    {
+                        'output_dir': '.',
+                        'build_dir': '.'
+                    }
                   )
 
             self.assertTrue(Path(output, 'generated.txt').exists())
             self.assertTrue(Path(output, 'to_keep.txt').exists())
             self.assertTrue(Path(output, 'to_keep_pattern.txt').exists())
             self.assertTrue(Path(output, 'folder').exists())
+            self.assertTrue(Path(output, 'build.json').exists())
             self.assertFalse(Path(output, 'erase.txt').exists())
             self.assertFalse(Path(output, 'dont_need_this.txt').exists())
             self.assertFalse(Path(output, 'del_folder').exists())
+            with open(Path(output, 'build.json'), 'r') as build_fd:
+                data = json.load(build_fd)
+                self.assertEqual('123', data['autorest'])
 
 
 if __name__ == '__main__':

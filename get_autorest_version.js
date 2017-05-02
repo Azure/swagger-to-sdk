@@ -1,0 +1,1 @@
+process.stdout.write(require(require('child_process').execSync('npm root -g').toString().trim() +  '/autorest').Installer.LatestAutorestVersion)
