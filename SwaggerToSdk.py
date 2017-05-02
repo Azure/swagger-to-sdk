@@ -47,7 +47,7 @@ def autorest_latest_version_finder():
     my_folder = os.path.dirname(__file__)
     script_path = os.path.join(my_folder, "get_autorest_version.js")
     cmd = ["node", script_path]
-    return subprocess.check_output(cmd, shell=True).decode().strip()
+    return subprocess.check_output(cmd).decode().strip()
 
 def get_documents_in_composite_file(composite_filepath):
     """Get the documents inside this composite file, relative to the repo root.
