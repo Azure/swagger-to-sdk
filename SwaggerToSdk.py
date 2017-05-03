@@ -20,6 +20,8 @@ import requests
 from git import Repo, GitCommandError
 from github import Github, GithubException
 
+from markdown_support import extract_yaml
+
 _LOGGER = logging.getLogger(__name__)
 
 LATEST_TAG = 'latest'
@@ -48,6 +50,33 @@ def autorest_latest_version_finder():
     script_path = os.path.join(my_folder, "get_autorest_version.js")
     cmd = ["node", script_path]
     return subprocess.check_output(cmd).decode().strip()
+
+def get_documents_in_markdown_file(markdown_filepath):
+    """Get the documents inside this markdown file, relative to the repo root.
+
+    :params str markdown_filepath: The filepath, relative to the repo root or absolute.
+    :returns: An iterable of Swagger specs in this markdown file
+    :rtype: list<str>"""
+    _LOGGER.info("Parsing markdown file %s", markdown_filepath)
+    def pathconvert(doc_path):
+        if doc_path.startswith('https'):
+            return doc_path.split('/master/')[1]
+        else:
+            return markdown_filepath.parent / doc_path
+    with markdown_filepath.open() as markdown_fd:
+        try:
+            yaml_code = extract_yaml(markdown_fd.read())
+        except Exception as err:
+            _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
+            raise
+        return [Path(pathconvert(d)) for d in yaml_code['input-file']]
+
+def find_markdown_files(base_dir=Path('.')):
+    """Find markdown file.
+
+    The path are relative to base_dir.
+    :rtype: pathlib.Path"""
+    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('*/*.md')]
 
 def get_documents_in_composite_file(composite_filepath):
     """Get the documents inside this composite file, relative to the repo root.
@@ -85,6 +114,15 @@ def swagger_index_from_composite(base_dir=Path('.')):
         for doc in get_documents_in_composite_file(composite_file)
     }
 
+def swagger_index_from_markdown(base_dir=Path('.')):
+    """Build a reversed index of the markdown files in this repository.
+    :rtype: dict"""
+    return {
+        doc: markdown_file
+        for markdown_file in find_markdown_files(base_dir)
+        for doc in get_documents_in_markdown_file(markdown_file)
+    }
+
 def get_swagger_files_in_pr(pr_object):
     """Get the list of Swagger files in the given PR."""
     return {Path(file.filename) for file in pr_object.get_files()
@@ -94,6 +132,7 @@ def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
     """List project files in the PR, a project file being a Composite file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
     swagger_index = swagger_index_from_composite(base_dir)
+    swagger_index.update(swagger_index_from_markdown(base_dir))
     swagger_files_in_pr |= {swagger_index[s]
                             for s in swagger_files_in_pr
                             if s in swagger_index}

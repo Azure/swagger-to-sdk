@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO)
 os.environ['TRAVIS'] = 'true'
 
 from SwaggerToSdk import *
+from markdown_support import *
 
 if not 'GH_TOKEN' in os.environ:
     raise Exception('GH_TOKEN must be defined to do the unitesting')
@@ -18,6 +19,16 @@ def get_pr(repo_id, pr_number):
     github_client = Github(GH_TOKEN)
     repo = github_client.get_repo(repo_id)
     return repo.get_pull(int(pr_number))
+
+class TestMarkDownSupport(unittest.TestCase):
+
+    def test_extract_md(self):
+        md_text = '# Scenario: Validate a OpenAPI definition file according to the ARM guidelines \r\n\r\n> see https://aka.ms/autorest\r\n\r\n## Inputs\r\n\r\n``` yaml \r\ninput-file:\r\n  - https://github.com/Azure/azure-rest-api-specs/blob/master/arm-storage/2015-06-15/swagger/storage.json\r\n```\r\n\r\n## Validation\r\n\r\nThis time, we not only want to generate code, we also want to validate.\r\n\r\n``` yaml\r\nazure-arm: true # enables validation messages\r\n```\r\n\r\n## Generation\r\n\r\nAlso generate for some languages.\r\n\r\n``` yaml \r\ncsharp:\r\n  output-folder: CSharp\r\njava:\r\n  output-folder: Java\r\nnodejs:\r\n  output-folder: NodeJS\r\npython:\r\n  output-folder: Python\r\nruby:\r\n  output-folder: Ruby\r\n```'
+        yaml_content = extract_yaml(md_text)
+        self.assertEquals(
+            'https://github.com/Azure/azure-rest-api-specs/blob/master/arm-storage/2015-06-15/swagger/storage.json',
+            yaml_content["input-file"][0]
+        )
 
 class TestSwaggerToSDK(unittest.TestCase):
 
@@ -48,6 +59,15 @@ class TestSwaggerToSDK(unittest.TestCase):
                     Path('test/compositeGraphRbacManagementClient.json')
             },
             swagger_index_from_composite()
+        )
+
+    def test_swagger_index_from_markdown(self):
+        self.assertDictEqual(
+            {
+                Path('arm-storage/2015-06-15/swagger/storage.json'):
+                    Path('test/readme.md'),
+            },
+            swagger_index_from_markdown()
         )
 
     def test_get_doc_composite(self):
