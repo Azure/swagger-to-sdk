@@ -11,8 +11,7 @@ RUN apt-get update && apt-get install -y curl git software-properties-common loc
 
 # NodeJS
 RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
-    apt-get update && apt-get install -y nodejs && \
-    npm install npm@latest -g
+    apt-get update && apt-get install -y nodejs
 
 # Dotnet
 RUN echo "deb [arch=amd64] https://apt-mo.trafficmanager.net/repos/dotnet-release/ xenial main" | tee /etc/apt/sources.list.d/dotnetdev.list && \
