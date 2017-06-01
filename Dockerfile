@@ -1,5 +1,7 @@
 FROM ubuntu:16.04
 
+USER root
+
 MAINTAINER lmazuel
 
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 417A0893
