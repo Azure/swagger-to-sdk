@@ -1,5 +1,7 @@
 FROM ubuntu:16.04
 
+USER root
+
 MAINTAINER lmazuel
 
 RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 417A0893
@@ -8,9 +10,8 @@ RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 417A0893
 RUN apt-get update && apt-get install -y curl git software-properties-common locales
 
 # NodeJS
-RUN curl -sL https://deb.nodesource.com/setup_6.x | bash - && \
-    apt-get update && apt-get install -y nodejs && \
-    npm install npm@latest -g
+RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
+    apt-get update && apt-get install -y nodejs
 
 # Dotnet
 RUN echo "deb [arch=amd64] https://apt-mo.trafficmanager.net/repos/dotnet-release/ xenial main" | tee /etc/apt/sources.list.d/dotnetdev.list && \
