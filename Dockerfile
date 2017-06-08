@@ -47,4 +47,4 @@ COPY markdown_support.py /
 COPY get_autorest_version.js /
 
 WORKDIR /git-restapi
-ENTRYPOINT ["python3.6", "/SwaggerToSdk.py"]
+ENTRYPOINT ["python3.6", "/SwaggerToSdkMain.py"]
