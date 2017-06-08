@@ -38,7 +38,10 @@ ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en  
 ENV LC_ALL en_US.UTF-8  
 
-COPY SwaggerToSdk.py /
+COPY SwaggerToSdkMain.py /
+COPY SwaggerToSdkCore.py /
+COPY SwaggerToSdkLegacy.py /
+COPY SwaggerToSdkNewCLI.py /
 COPY markdown_support.py /
 COPY get_autorest_version.js /
 

@@ -8,8 +8,10 @@ logging.basicConfig(level=logging.INFO)
 # Fake Travis before importing the Script
 os.environ['TRAVIS'] = 'true'
 
-from SwaggerToSdk import *
+from SwaggerToSdkCore import *
 from markdown_support import *
+import SwaggerToSdkLegacy
+import SwaggerToSdkNewCLI
 
 if not 'GH_TOKEN' in os.environ:
     raise Exception('GH_TOKEN must be defined to do the unitesting')
@@ -100,7 +102,7 @@ class TestSwaggerToSDK(unittest.TestCase):
 
     @unittest.mock.patch('subprocess.check_output')
     def test_generate_code(self, mocked_check_output):
-        generate_code(
+        SwaggerToSdkLegacy.generate_code(
             'Java',
             Path('/a/b/c/swagger.json'),
             Path('/'),
@@ -123,8 +125,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertListEqual(call_args[0][0], expected)
         self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
 
-        generate_code(
-            None, # Ignored
+        SwaggerToSdkNewCLI.generate_code(
             Path('/a/b/c/swagger.md'),
             Path('/'),
             {"autorest_markdown_cli": True},
@@ -154,8 +155,7 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_generate_code_no_autorest_in_path(self, mocked_check_output):
         with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm, unittest.mock.patch('shutil.which') as which:
             which.return_value = None
-            generate_code(
-                'Java',
+            SwaggerToSdkNewCLI.generate_code(
                 Path('/a/b/c/swagger.json'),
                 Path(temp_dir),
                 {},
@@ -169,8 +169,7 @@ class TestSwaggerToSDK(unittest.TestCase):
     @unittest.mock.patch('subprocess.check_output')
     def test_generate_code_fail(self, mocked_check_output):
         with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm:
-            generate_code(
-                'Java',
+            SwaggerToSdkNewCLI.generate_code(
                 Path('/a/b/c/swagger.json'),
                 Path(temp_dir),
                 {},
@@ -247,38 +246,38 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertIsNone(pr_obj)
 
     def test_legacy_build_autorest_options(self):
-        line = legacy_build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
         self.assertEqual(line, "-A value -B value -CodeGenerator Azure.Python")
 
-        line = legacy_build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
         self.assertEqual(line, "-A newvalue -CodeGenerator Azure.Python")
 
-        line = legacy_build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {})
         self.assertEqual(line, "-CodeGenerator NodeJS")
 
-        line = legacy_build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {"autorest_options": {"CodeGenerator": "CSharp"}})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {"autorest_options": {"CodeGenerator": "CSharp"}})
         self.assertEqual(line, "-CodeGenerator CSharp")
 
-        line = legacy_build_autorest_options("Python", {}, {})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {}, {})
         self.assertEqual(line, "-CodeGenerator Azure.Python")
 
-        line = legacy_build_autorest_options("Python", {"autorest_options": {"A": 12, "B": True}}, {})
+        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": 12, "B": True}}, {})
         self.assertEqual(line, "-A 12 -B True -CodeGenerator Azure.Python")
 
     def test_build_autorest_options(self):
-        line = build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
+        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
         self.assertEqual(line, "--a=value --b=value")
 
-        line = build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": ["value1", "value2"]}})
+        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": ["value1", "value2"]}})
         self.assertEqual(line, "--a=value --b=value1 --b=value2")
 
-        line = build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
+        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
         self.assertEqual(line, "--a=newvalue")
 
-        line = build_autorest_options({}, {})
+        line = SwaggerToSdkNewCLI.build_autorest_options({}, {})
         self.assertEqual(line, "")
 
-        line = build_autorest_options({"autorest_options": {"A": 12, "B": True, "C": ''}}, {})
+        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": 12, "B": True, "C": ''}}, {})
         self.assertEqual(line, "--a=12 --b=True --c")
 
     def test_merge_options(self):
@@ -298,8 +297,8 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertDictEqual(result, {1: 2, 2: 3, 3: 4})
 
     def test_get_input_path(self):
-        main, opt = get_input_paths(
-            {"autorest_markdown_cli": True},
+        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
+            {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
             }}
@@ -307,17 +306,8 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(None, main)
         self.assertEqual([Path('a'), Path('b')], opt)
 
-        main, opt = get_input_paths(
-            {"autorest_markdown_cli": True},
-            {"autorest_options": {
-                "input-file": ['a', 'b']
-            },"swagger":"c"}
-        )
-        self.assertEqual(None, main)
-        self.assertEqual([Path('a'), Path('b'), Path('c')], opt)
-
-        main, opt = get_input_paths(
-            {"autorest_markdown_cli": True},
+        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
+            {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
             },"markdown":"c"}
@@ -325,11 +315,12 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(Path('c'), main)
         self.assertEqual([Path('a'), Path('b')], opt)
 
-        main, opt = get_input_paths(
+        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
             {},
-            {"swagger":"c"}
+            {"composite": "d"}
         )
-        self.assertEqual(Path('c'), main)
+        self.assertEqual(None, main)
+        self.assertEqual(Path('d'), comp)
         self.assertEqual([], opt)
 
     def test_get_user(self):
@@ -391,7 +382,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
             Path(output, 'erase.txt').write_bytes(b'My content')
 
-            update(generated,
+            SwaggerToSdkNewCLI.update(generated,
                    output,
                    {'wrapper_filesOrDirs': [
                        'to_keep.txt',

@@ -1,8 +1,10 @@
 import argparse
 import logging
+from io import open
 from pathlib import Path
 
-from SwaggerToSdk import *
+from SwaggerToSdkNewCLI import *
+from SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -11,7 +13,6 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
     config = read_config(sdk_folder, config_path)
 
     global_conf = config["meta"]
-    language = global_conf["language"]
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():
@@ -19,22 +20,30 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                 _LOGGER.info("Skip project %s", project)
                 continue
 
-            main_input_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
+            markdown_relative_path, optional_relative_paths, composite_relative_path = get_input_paths(global_conf, local_conf)
 
-            _LOGGER.info("Main input: %s", main_input_relative_path)
-            _LOGGER.info("Optional inputs: %s", optional_relative_paths)
+            _LOGGER.info(f"Markdown input: {markdown_relative_path}")
+            _LOGGER.info(f"Optional inputs: {optional_relative_paths}")
+            _LOGGER.info(f"Composite input: {composite_relative_path}")
 
-            absolute_input_path = Path(restapi_git_folder, main_input_relative_path).resolve()
+            absolute_markdown_path = None
+            if markdown_relative_path:
+                absolute_markdown_path = Path(restapi_git_folder, markdown_relative_path).resolve()
             if optional_relative_paths:
-                local_conf['input-file'] = [
+                local_conf.setdefault('autorest_options', {})['input-file'] = [
                     Path(restapi_git_folder, input_path).resolve()
                     for input_path
                     in optional_relative_paths
                 ]
+            if composite_relative_path:
+                composite_full_path = Path(restapi_git_folder, composite_relative_path).resolve()
+                md_content_from_composite = convert_composite_to_markdown(composite_full_path)
+                absolute_markdown_path = Path(temp_dir, "composite.md").resolve()
+                with open(absolute_markdown_path, "w", encoding="utf-8") as tmp_fd:
+                    tmp_fd.write(md_content_from_composite)
 
-            absolute_generated_path = Path(temp_dir, "Generated")
-            generate_code(language,
-                          absolute_input_path,
+            absolute_generated_path = Path(temp_dir, project)
+            generate_code(absolute_markdown_path,
                           absolute_generated_path,
                           global_conf,
                           local_conf,
