@@ -32,6 +32,11 @@ class TestMarkDownSupport(unittest.TestCase):
             yaml_content["input-file"][0]
         )
 
+    def test_extract_md_with_no_input(self):
+        md_text = '# Empty md'
+        yaml_content = extract_yaml(md_text)
+        self.assertIsNone(yaml_content)
+
 class TestSwaggerToSDK(unittest.TestCase):
 
     def setUp(self):
