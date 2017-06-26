@@ -93,7 +93,7 @@ def get_documents_in_markdown_file(markdown_filepath):
     with markdown_filepath.open() as markdown_fd:
         try:
             yaml_code = extract_yaml(markdown_fd.read())
-            if not yaml_code:
+            if not yaml_code or 'input-file' not in yaml_code:
                 return []
         except Exception as err:
             _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
