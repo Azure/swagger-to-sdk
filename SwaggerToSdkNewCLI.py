@@ -195,6 +195,7 @@ def build_libraries(gh_token, config, project_pattern, restapi_git_folder, sdk_r
 
         if initial_pr and not (
                 markdown_relative_path in swagger_files_in_pr or
+                composite_relative_path in swagger_files_in_pr or
                 any(input_file in swagger_files_in_pr for input_file in optional_relative_paths)):
             _LOGGER.info(f"Skip project {project} since no files involved in this PR")
             continue
