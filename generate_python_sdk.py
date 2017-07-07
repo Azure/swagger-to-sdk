@@ -10,9 +10,11 @@ _LOGGER = logging.getLogger(__name__)
 
 def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autorest_bin=None):
 
+    sdk_folder = Path(sdk_folder).expanduser()
     config = read_config(sdk_folder, config_path)
 
     global_conf = config["meta"]
+    restapi_git_folder = Path(restapi_git_folder).expanduser()
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():
