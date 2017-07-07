@@ -27,7 +27,7 @@ RUN curl -sL https://bootstrap.pypa.io/get-pip.py | python3.6
 
 # Autorest
 RUN npm install -g autorest
-RUN autorest --help
+RUN autorest --reset
 
 # Python packages
 COPY requirements.txt /tmp
