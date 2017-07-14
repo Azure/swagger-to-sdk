@@ -48,12 +48,12 @@ class TestSwaggerToSDK(unittest.TestCase):
                 del os.environ[key]
 
     def test_get_swagger_project_files_in_pr(self):
-        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 361))
+        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422))
         for s in swaggers:
             self.assertIsInstance(s, Path)
             self.assertIn(s, [
-                Path('arm-graphrbac/1.6/swagger/graphrbac.json'),
-                Path('test/compositeGraphRbacManagementClient.json')
+                Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'),
+                Path('test/readme.md')
             ])
         self.assertEqual(len(swaggers), 2)
 
@@ -71,7 +71,7 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_swagger_index_from_markdown(self):
         self.assertDictEqual(
             {
-                Path('arm-storage/2015-06-15/swagger/storage.json'):
+                Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'):
                     Path('test/readme.md'),
             },
             swagger_index_from_markdown()
@@ -91,13 +91,8 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_get_pr_files(self):
         # Basic test, one Swagger file only
         self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 342)),
-            {Path('search/2015-02-28-Preview/swagger/searchservice.json')}
-        )
-        # This PR contains a schema and a Swagger, I just want the swagger
-        self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 341)),
-            {Path('arm-mobileengagement/2014-12-01/swagger/mobile-engagement.json')}
+            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422)),
+            {Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json')}
         )
         # Should not find Swagger and not fails
         self.assertSetEqual(

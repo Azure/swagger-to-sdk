@@ -159,10 +159,10 @@ def swagger_index_from_markdown(base_dir=Path('.')):
 def get_swagger_files_in_pr(pr_object):
     """Get the list of Swagger files in the given PR."""
     return {Path(file.filename) for file in pr_object.get_files()
-            if re.match(r".*/swagger/.*\.json", file.filename, re.I)}
+            if re.match(r"specification/.*\.json", file.filename, re.I)}
 
 def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
-    """List project files in the PR, a project file being a Composite file or a Swagger file."""
+    """List project files in the PR, a project file being a Composite/Markdown file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
     swagger_index = swagger_index_from_composite(base_dir)
     swagger_index.update(swagger_index_from_markdown(base_dir))

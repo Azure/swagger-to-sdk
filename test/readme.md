@@ -6,7 +6,7 @@
 
 ``` yaml 
 input-file:
-  - https://github.com/Azure/azure-rest-api-specs/blob/master/arm-storage/2015-06-15/swagger/storage.json
+  - https://github.com/Azure/azure-rest-api-specs/blob/master/specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json
 ```
 
 ## Validation
