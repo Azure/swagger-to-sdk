@@ -147,7 +147,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             'myautorest',
             '--version=latest',
             str(Path('/a/b/c/swagger.md')),
-            '--output-folder={}/'.format(str(Path('/'))),
+            '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
             '--azure-arm=True',
             '--input-file={}'.format(str(Path('/a/b/c/swagger.json'))),
             '--java',
