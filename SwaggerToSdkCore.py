@@ -105,7 +105,7 @@ def find_markdown_files(base_dir=Path('.')):
 
     The path are relative to base_dir.
     :rtype: pathlib.Path"""
-    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('*/*.md')]
+    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('**/*.md')]
 
 def get_composite_file_as_json(composite_filepath):
     """Get the composite file as JSON"""
