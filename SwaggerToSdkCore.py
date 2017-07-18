@@ -84,7 +84,7 @@ def get_documents_in_markdown_file(markdown_filepath):
     :params str markdown_filepath: The filepath, relative to the repo root or absolute.
     :returns: An iterable of Swagger specs in this markdown file
     :rtype: list<str>"""
-    _LOGGER.info("Parsing markdown file %s", markdown_filepath)
+    _LOGGER.debug("Parsing markdown file %s", markdown_filepath)
     def pathconvert(doc_path):
         if doc_path.startswith('https'):
             return doc_path.split('/master/')[1]
@@ -97,7 +97,8 @@ def get_documents_in_markdown_file(markdown_filepath):
                 return []
         except Exception as err:
             _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
-            raise
+            return []
+        _LOGGER.info("Parsing markdown file %s", markdown_filepath)
         return [Path(pathconvert(d)) for d in yaml_code['input-file']]
 
 def find_markdown_files(base_dir=Path('.')):
