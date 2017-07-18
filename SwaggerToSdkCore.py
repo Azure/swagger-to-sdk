@@ -92,14 +92,12 @@ def get_documents_in_markdown_file(markdown_filepath):
             return markdown_filepath.parent / doc_path
     with markdown_filepath.open() as markdown_fd:
         try:
-            yaml_code = extract_yaml(markdown_fd.read())
-            if not yaml_code or 'input-file' not in yaml_code:
-                return []
+            raw_input_file = extract_yaml(markdown_fd.read())
         except Exception as err:
             _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
             return []
         _LOGGER.info("Parsing markdown file %s", markdown_filepath)
-        return [Path(pathconvert(d)) for d in yaml_code['input-file']]
+        return [Path(pathconvert(d)) for d in raw_input_file]
 
 def find_markdown_files(base_dir=Path('.')):
     """Find markdown file.

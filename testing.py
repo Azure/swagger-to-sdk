@@ -29,13 +29,17 @@ class TestMarkDownSupport(unittest.TestCase):
         yaml_content = extract_yaml(md_text)
         self.assertEquals(
             'https://github.com/Azure/azure-rest-api-specs/blob/master/arm-storage/2015-06-15/swagger/storage.json',
-            yaml_content["input-file"][0]
+            yaml_content[0]
         )
 
     def test_extract_md_with_no_input(self):
         md_text = '# Empty md'
         yaml_content = extract_yaml(md_text)
-        self.assertIsNone(yaml_content)
+        self.assertListEqual([], yaml_content)
+
+    def test_extract_md_with_tag(self):
+        docs = get_documents_in_markdown_file(Path('test/readme_tag.md_test'))
+        self.assertEqual(len(docs), 29, "Not enough document")
 
 class TestSwaggerToSDK(unittest.TestCase):
 
