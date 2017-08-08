@@ -136,6 +136,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             {"autorest_options":{
                 "java": '',
                 'azure-arm': True,
+                "description": "I am a spaced description",
                 'input-file': [Path('/a/b/c/swagger.json')]}
             },
             "node myautorest"
@@ -148,6 +149,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             str(Path('/a/b/c/swagger.md')),
             '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
             '--azure-arm=True',
+            "--description='I am a spaced description'",
             '--input-file={}'.format(str(Path('/a/b/c/swagger.json'))),
             '--java',
         ]
@@ -269,20 +271,20 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(line, "-A 12 -B True -CodeGenerator Azure.Python")
 
     def test_build_autorest_options(self):
-        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
-        self.assertEqual(line, "--a=value --b=value")
+        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value value"}})
+        self.assertListEqual(line, ["--a=value", "--b='value value'"])
 
         line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": ["value1", "value2"]}})
-        self.assertEqual(line, "--a=value --b=value1 --b=value2")
+        self.assertListEqual(line, ["--a=value", "--b=value1", "--b=value2"])
 
         line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
-        self.assertEqual(line, "--a=newvalue")
+        self.assertListEqual(line, ["--a=newvalue"])
 
         line = SwaggerToSdkNewCLI.build_autorest_options({}, {})
-        self.assertEqual(line, "")
+        self.assertListEqual(line, [])
 
         line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": 12, "B": True, "C": ''}}, {})
-        self.assertEqual(line, "--a=12 --b=True --c")
+        self.assertListEqual(line, ["--a=12", "--b=True", "--c"])
 
     def test_merge_options(self):
         result = merge_options({}, {}, 'key')

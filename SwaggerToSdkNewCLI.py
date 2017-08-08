@@ -21,11 +21,11 @@ def build_autorest_options(global_conf, local_conf):
     listify = lambda x: x if isinstance(x, list) else [x]
 
     sorted_keys = sorted(list(merged_options.keys())) # To be honest, just to help for tests...
-    return " ".join(
+    return [
         "--{}{}".format(key.lower(), value(str(option)))
         for key in sorted_keys
         for option in listify(merged_options[key])
-    )
+    ]
 
 def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=None):
     """Call the Autorest process with the given parameters"""
@@ -37,11 +37,10 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     if not autorest_bin:
         raise ValueError("No autorest found in PATH and no autorest path option used")
 
-    params = "{} --output-folder={} {}".format(
-        str(input_file) if input_file else "",
-        str(output_dir)+os.path.sep,
-        build_autorest_options(global_conf, local_conf)
-    )
+    params = [str(input_file)] if input_file else []
+    params.append("--output-folder={}".format(str(output_dir)+os.path.sep))
+    params += build_autorest_options(global_conf, local_conf)
+
     input_files = local_conf.get("autorest_options", {}).get("input-file", [])
     if input_file:
         input_path = input_file.parent
@@ -50,12 +49,13 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     else:
         raise ValueError("I don't have input files!")
 
-    cmd_line = autorest_bin + " --version={} {}"
-    cmd_line = cmd_line.format(str(autorest_version), params)
-    _LOGGER.info("Autorest cmd line:\n%s", cmd_line)
+    cmd_line = autorest_bin.split()
+    cmd_line += ["--version={}".format(str(autorest_version))]
+    cmd_line += params
+    _LOGGER.info("Autorest cmd line:\n%s", str(cmd_line))
 
     try:
-        result = subprocess.check_output(cmd_line.split(),
+        result = subprocess.check_output(cmd_line,
                                          stderr=subprocess.STDOUT,
                                          universal_newlines=True,
                                          cwd=str(input_path))
