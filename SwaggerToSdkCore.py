@@ -33,18 +33,26 @@ def build_file_content(autorest_version):
     utc_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()+'Z'
     if autorest_version==LATEST_TAG:
         autorest_version = autorest_latest_version_finder()
+    autorest_bootstrap_version = autorest_bootstrap_version_finder()
     return {
         'autorest': autorest_version,
-        'date': utc_time,
-        'version': ''
+        'autorest_bootstrap': autorest_bootstrap_version,
+        'date': utc_time
     }
 
 
 def autorest_latest_version_finder():
-    my_folder = os.path.dirname(__file__)
-    script_path = os.path.join(my_folder, "get_autorest_version.js")
-    cmd = ["node", script_path]
-    return subprocess.check_output(cmd).decode().strip()
+    autorest_bin = shutil.which("autorest")
+    cmd_line = "{} --version --json".format(autorest_bin)
+    return json.loads(subprocess.check_output(cmd_line.split()).decode().strip())
+
+def autorest_bootstrap_version_finder():
+    try:
+        npm_bin = shutil.which('npm')
+        cmd_line = ("{} --json ls autorest -g".format(npm_bin)).split()
+        return json.loads(subprocess.check_output(cmd_line).decode().strip())
+    except Exception:
+        return {}
 
 
 def merge_options(global_conf, local_conf, key):

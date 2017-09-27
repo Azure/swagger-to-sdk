@@ -125,7 +125,7 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
         build_file = Path(build_folder, "build.json")
         autorest_version = global_conf.get("autorest", LATEST_TAG)
         with open(build_file, 'w') as build_fd:
-            json.dump(build_file_content(autorest_version), build_fd)
+            json.dump(build_file_content(autorest_version), build_fd, indent=2)
 
 def get_local_path_dir(root, relative_path):
     build_folder = Path(root, relative_path)
