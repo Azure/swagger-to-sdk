@@ -22,7 +22,17 @@ RUN add-apt-repository ppa:jonathonf/python-3.6 && \
 RUN curl -sL https://bootstrap.pypa.io/get-pip.py | python3.6
 
 # Autorest
-RUN npm install -g autorest
+WORKDIR /opt
+
+# pre-load dotnet framework runtime to slim down runtime effort
+RUN npm install dotnet-2.0.0 
+ 
+# Autorest 
+RUN npm install autorest
+RUN ln -s /opt/node_modules/.bin/autorest /usr/local/bin
+ 
+# ensure autorest minimum version of the modeler
+RUN autorest --use="@microsoft.azure/autorest.modeler@2.0.21" --allow-no-input
 
 # Python packages
 COPY requirements.txt /tmp
