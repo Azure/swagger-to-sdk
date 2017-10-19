@@ -52,7 +52,7 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     cmd_line = autorest_bin.split()
     cmd_line += ["--version={}".format(str(autorest_version))]
     cmd_line += params
-    _LOGGER.info("Autorest cmd line:\n%s", str(cmd_line))
+    _LOGGER.info("Autorest cmd line:\n%s", " ".join(cmd_line))
 
     try:
         result = subprocess.check_output(cmd_line,
@@ -88,7 +88,8 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
         try:
             client_generated_path = client_possible_path.pop()
         except IndexError:
-            err_msg = "Incorrect generated_relative_base_directory folder: {}".format(generated_relative_base_directory)
+            err_msg = "Incorrect generated_relative_base_directory folder: {}\n".format(generated_relative_base_directory)
+            err_msg += "Base folders were: : {}\n".format([f.relative_to(client_generated_path) for f in client_generated_path.iterdir()])
             _LOGGER.critical(err_msg)
             raise ValueError(err_msg)
         if client_possible_path:
