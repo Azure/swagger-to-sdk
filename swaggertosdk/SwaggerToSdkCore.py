@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from git import Repo, GitCommandError
 from github import Github, GithubException
 
-from markdown_support import extract_yaml
+from .markdown_support import extract_yaml
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def checkout_and_create_branch(repo, name):
         local_branch = repo.create_head(name)
     local_branch.checkout()
 
-def get_documents_in_markdown_file(markdown_filepath):
+def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
     """Get the documents inside this markdown file, relative to the repo root.
 
     :params str markdown_filepath: The filepath, relative to the repo root or absolute.
@@ -98,7 +98,7 @@ def get_documents_in_markdown_file(markdown_filepath):
             return doc_path.split('/master/')[1]
         else:
             return markdown_filepath.parent / doc_path
-    with markdown_filepath.open() as markdown_fd:
+    with (base_dir / markdown_filepath).open() as markdown_fd:
         try:
             raw_input_file = extract_yaml(markdown_fd.read())
         except Exception as err:
@@ -123,7 +123,7 @@ def get_composite_file_as_json(composite_filepath):
             _LOGGER.critical("Invalid JSON file: %s", composite_filepath)
             raise
 
-def get_documents_in_composite_file(composite_filepath):
+def get_documents_in_composite_file(composite_filepath, base_dir=Path('.')):
     """Get the documents inside this composite file, relative to the repo root.
 
     :params str composite_filepath: The filepath, relative to the repo root or absolute.
@@ -135,7 +135,7 @@ def get_documents_in_composite_file(composite_filepath):
             return doc_path.split('/master/')[1]
         else:
             return composite_filepath.parent / doc_path
-    composite_json = get_composite_file_as_json(composite_filepath)
+    composite_json = get_composite_file_as_json(base_dir / composite_filepath)
     return [Path(pathconvert(d)) for d in composite_json['documents']]
 
 def find_composite_files(base_dir=Path('.')):
@@ -151,7 +151,7 @@ def swagger_index_from_composite(base_dir=Path('.')):
     return {
         doc: composite_file
         for composite_file in find_composite_files(base_dir)
-        for doc in get_documents_in_composite_file(composite_file)
+        for doc in get_documents_in_composite_file(composite_file, base_dir)
     }
 
 def swagger_index_from_markdown(base_dir=Path('.')):
@@ -160,7 +160,7 @@ def swagger_index_from_markdown(base_dir=Path('.')):
     return {
         doc: markdown_file
         for markdown_file in find_markdown_files(base_dir)
-        for doc in get_documents_in_markdown_file(markdown_file)
+        for doc in get_documents_in_markdown_file(markdown_file, base_dir)
     }
 
 def get_swagger_files_in_pr(pr_object):

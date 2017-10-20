@@ -34,21 +34,16 @@ RUN ln -s /opt/node_modules/.bin/autorest /usr/local/bin
 # ensure autorest minimum version of the modeler
 RUN autorest --use="@microsoft.azure/autorest.modeler@2.0.21" --allow-no-input
 
-# Python packages
-COPY requirements.txt /tmp
-RUN pip3.6 install -r /tmp/requirements.txt
-
 # Set the locale to UTF-8
 RUN locale-gen en_US.UTF-8  
 ENV LANG en_US.UTF-8  
 ENV LANGUAGE en_US:en  
 ENV LC_ALL en_US.UTF-8  
 
-COPY SwaggerToSdkMain.py /
-COPY SwaggerToSdkCore.py /
-COPY SwaggerToSdkLegacy.py /
-COPY SwaggerToSdkNewCLI.py /
-COPY markdown_support.py /
+COPY setup.py /tmp
+COPY swaggertosdk /tmp/swaggertosdk/
+WORKDIR /tmp
+RUN pip3.6 install .
 
 WORKDIR /git-restapi
-ENTRYPOINT ["python3.6", "/SwaggerToSdkMain.py"]
+ENTRYPOINT ["python3.6", "-m", "swaggertosdk"]

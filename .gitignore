@@ -1,0 +1,11 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+env*/
+
+# Result of running python setup.py install/pip install -e
+RECORD.txt
+build/
+*.egg-info/

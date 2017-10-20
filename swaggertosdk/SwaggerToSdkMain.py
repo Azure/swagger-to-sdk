@@ -2,7 +2,7 @@ import argparse
 import os
 import logging
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,6 +137,3 @@ def main():
                  args.base_branch,
                  args.branch,
                  args.autorest_bin)
-
-if __name__ == "__main__":
-    main()

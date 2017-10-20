@@ -8,7 +8,7 @@ import re
 import datetime
 from pathlib import Path
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 

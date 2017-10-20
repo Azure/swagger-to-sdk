@@ -1,5 +1,5 @@
 import unittest.mock
-import os
+import os.path
 import logging
 import tempfile
 from pathlib import Path
@@ -8,14 +8,16 @@ logging.basicConfig(level=logging.INFO)
 # Fake Travis before importing the Script
 os.environ['TRAVIS'] = 'true'
 
-from SwaggerToSdkCore import *
-from markdown_support import *
-import SwaggerToSdkLegacy
-import SwaggerToSdkNewCLI
+from swaggertosdk.SwaggerToSdkCore import *
+from swaggertosdk.markdown_support import *
+import swaggertosdk.SwaggerToSdkLegacy as SwaggerToSdkLegacy
+import swaggertosdk.SwaggerToSdkNewCLI as SwaggerToSdkNewCLI
 
 if not 'GH_TOKEN' in os.environ:
     raise Exception('GH_TOKEN must be defined to do the unitesting')
 GH_TOKEN = os.environ['GH_TOKEN']
+
+CWD = os.path.dirname(os.path.realpath(__file__))
 
 def get_pr(repo_id, pr_number):
     github_client = Github(GH_TOKEN)
@@ -38,7 +40,7 @@ class TestMarkDownSupport(unittest.TestCase):
         self.assertListEqual([], yaml_content)
 
     def test_extract_md_with_tag(self):
-        docs = get_documents_in_markdown_file(Path('test/readme_tag.md_test'))
+        docs = get_documents_in_markdown_file(Path('files/readme_tag.md_test'), base_dir=Path(CWD))
         self.assertEqual(len(docs), 29, "Not enough document")
 
 class TestSwaggerToSDK(unittest.TestCase):
@@ -52,12 +54,12 @@ class TestSwaggerToSDK(unittest.TestCase):
                 del os.environ[key]
 
     def test_get_swagger_project_files_in_pr(self):
-        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422))
+        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422), base_dir=Path(CWD))
         for s in swaggers:
             self.assertIsInstance(s, Path)
             self.assertIn(s, [
                 Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'),
-                Path('test/readme.md')
+                Path('files/readme.md')
             ])
         self.assertEqual(len(swaggers), 2)
 
@@ -65,32 +67,32 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertDictEqual(
             {
                 Path('arm-graphrbac/1.6/swagger/graphrbac.json'):
-                    Path('test/compositeGraphRbacManagementClient.json'),
-                Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
-                    Path('test/compositeGraphRbacManagementClient.json')
+                    Path('files/compositeGraphRbacManagementClient.json'),
+                Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
+                    Path('files/compositeGraphRbacManagementClient.json')
             },
-            swagger_index_from_composite()
+            swagger_index_from_composite(Path(CWD))
         )
 
     def test_swagger_index_from_markdown(self):
         self.assertDictEqual(
             {
                 Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'):
-                    Path('test/readme.md'),
+                    Path('files/readme.md'),
             },
-            swagger_index_from_markdown()
+            swagger_index_from_markdown(Path(CWD))
         )
 
     def test_get_doc_composite(self):
-        composite_path = Path('test/compositeGraphRbacManagementClient.json')
-        documents = get_documents_in_composite_file(composite_path)
+        composite_path = Path('files/compositeGraphRbacManagementClient.json')
+        documents = get_documents_in_composite_file(composite_path, base_dir=Path(CWD))
         self.assertEqual(len(documents), 2)
         self.assertEqual(documents[0], Path('arm-graphrbac/1.6/swagger/graphrbac.json'))
-        self.assertEqual(documents[1], Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
+        self.assertEqual(documents[1], Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
 
     def test_find_composite_files(self):
-        files = find_composite_files()
-        self.assertEqual(files[0], Path('test/compositeGraphRbacManagementClient.json'))
+        files = find_composite_files(Path(CWD))
+        self.assertEqual(files[0], Path('files/compositeGraphRbacManagementClient.json'))
 
     def test_get_pr_files(self):
         # Basic test, one Swagger file only

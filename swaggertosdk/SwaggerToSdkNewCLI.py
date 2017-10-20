@@ -7,7 +7,7 @@ import re
 import yaml
 import os.path
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
