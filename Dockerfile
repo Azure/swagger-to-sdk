@@ -4,8 +4,6 @@ USER root
 
 MAINTAINER lmazuel
 
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 417A0893
-
 # Basic Ubuntu packages (libunwind for .NET)
 RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8
 
