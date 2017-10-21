@@ -9,3 +9,6 @@ env*/
 RECORD.txt
 build/
 *.egg-info/
+
+# Coverage report
+**/.coverage
