@@ -163,14 +163,18 @@ def swagger_index_from_markdown(base_dir=Path('.')):
         for doc in get_documents_in_markdown_file(markdown_file, base_dir)
     }
 
-def get_swagger_files_in_pr(pr_object):
-    """Get the list of Swagger files in the given PR."""
-    return {Path(file.filename) for file in pr_object.get_files()
+def get_swagger_files_in_git_object(git_object):
+    """Get the list of Swagger files in the given PR or commit"""
+    try:
+        files_list = git_object.get_files() # Try as a PR object
+    except AttributeError:
+        files_list = git_object.files # Try as a commit object
+    return {Path(file.filename) for file in files_list
             if re.match(r"specification/.*\.json", file.filename, re.I)}
 
 def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
     """List project files in the PR, a project file being a Composite/Markdown file or a Swagger file."""
-    swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
+    swagger_files_in_pr = get_swagger_files_in_git_object(pr_object)
     swagger_index = swagger_index_from_composite(base_dir)
     swagger_index.update(swagger_index_from_markdown(base_dir))
     swagger_files_in_pr |= {swagger_index[s]

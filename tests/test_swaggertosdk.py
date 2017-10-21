@@ -24,6 +24,11 @@ def get_pr(repo_id, pr_number):
     repo = github_client.get_repo(repo_id)
     return repo.get_pull(int(pr_number))
 
+def get_commit(repo_id, sha):
+    github_client = Github(GH_TOKEN)
+    repo = github_client.get_repo(repo_id)
+    return repo.get_commit(sha)
+
 class TestMarkDownSupport(unittest.TestCase):
 
     def test_extract_md(self):
@@ -94,15 +99,20 @@ class TestSwaggerToSDK(unittest.TestCase):
         files = find_composite_files(Path(CWD))
         self.assertEqual(files[0], Path('files/compositeGraphRbacManagementClient.json'))
 
-    def test_get_pr_files(self):
-        # Basic test, one Swagger file only
+    def test_get_git_files(self):
+        # Basic test, one Swagger file only (PR)
         self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422)),
+            get_swagger_files_in_git_object(get_pr('Azure/azure-rest-api-specs', 1422)),
             {Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json')}
+        )
+        # Basic test, one Swagger file only (commit)
+        self.assertSetEqual(
+            get_swagger_files_in_git_object(get_commit('Azure/azure-rest-api-specs', 'ae25a0505f86349bbe92251dde34d70bfb6be78a')),
+            {Path('specification/cognitiveservices/data-plane/EntitySearch/v1.0/EntitySearch.json')}
         )
         # Should not find Swagger and not fails
         self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-sdk-for-python', 627)),
+            get_swagger_files_in_git_object(get_pr('Azure/azure-sdk-for-python', 627)),
             set()
         )
 
