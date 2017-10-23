@@ -1,15 +1,34 @@
 import argparse
 import os
 import logging
+import tempfile
+from git import Repo, GitCommandError
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import (
+    CONFIG_FILE,
+    DEFAULT_BRANCH_NAME,
+    DEFAULT_COMMIT_MESSAGE,
+    DEFAULT_TRAVIS_BRANCH_NAME,
+    DEFAULT_TRAVIS_PR_BRANCH_NAME,
+    get_full_sdk_id,
+    manage_sdk_folder,
+    compute_branch_name,
+    configure_user,
+    sync_fork,
+    read_config,
+    get_initial_pr,
+    get_swagger_hexsha,
+    do_commit,
+    do_pr,
+    add_comment_to_initial_pr
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
-         sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
-         autorest_bin=None):
+                 sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
+                 autorest_bin=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
 
@@ -40,13 +59,13 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
         initial_pr = get_initial_pr(gh_token)
 
         if conf_version == "0.1.0":
-            import SwaggerToSdkLegacy
-            SwaggerToSdkLegacy.build_libraries(gh_token, config, project_pattern, restapi_git_folder,
-                sdk_repo, temp_dir, initial_pr, autorest_bin)
+            from . import SwaggerToSdkLegacy
+            SwaggerToSdkLegacy.build_libraries(config, project_pattern, restapi_git_folder,
+                                               sdk_repo, temp_dir, initial_pr, autorest_bin)
         elif conf_version == "0.2.0":
-            import SwaggerToSdkNewCLI
-            SwaggerToSdkNewCLI.build_libraries(gh_token, config, project_pattern, restapi_git_folder,
-                sdk_repo, temp_dir, initial_pr, autorest_bin)
+            from . import SwaggerToSdkNewCLI
+            SwaggerToSdkNewCLI.build_libraries(config, project_pattern, restapi_git_folder,
+                                               sdk_repo, temp_dir, initial_pr, autorest_bin)
         else:
             raise ValueError(f"Unsupported version {conf_version}")
 
@@ -137,6 +156,3 @@ def main():
                  args.base_branch,
                  args.branch,
                  args.autorest_bin)
-
-if __name__ == "__main__":
-    main()

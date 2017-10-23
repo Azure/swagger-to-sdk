@@ -1,19 +1,17 @@
 import os
 import logging
-import tempfile
 import json
 import re
 import shutil
 import stat
-import datetime
 import subprocess
 from pathlib import Path
 from contextlib import contextmanager
 
-from git import Repo, GitCommandError
+from git import Repo
 from github import Github, GithubException
 
-from markdown_support import extract_yaml
+from .markdown_support import extract_yaml
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,14 +28,12 @@ IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
 
 def build_file_content(autorest_version):
-    utc_time = datetime.datetime.utcnow().replace(microsecond=0).isoformat()+'Z'
-    if autorest_version==LATEST_TAG:
+    if autorest_version == LATEST_TAG:
         autorest_version = autorest_latest_version_finder()
     autorest_bootstrap_version = autorest_bootstrap_version_finder()
     return {
         'autorest': autorest_version,
         'autorest_bootstrap': autorest_bootstrap_version,
-        'date': utc_time
     }
 
 
@@ -86,7 +82,7 @@ def checkout_and_create_branch(repo, name):
         local_branch = repo.create_head(name)
     local_branch.checkout()
 
-def get_documents_in_markdown_file(markdown_filepath):
+def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
     """Get the documents inside this markdown file, relative to the repo root.
 
     :params str markdown_filepath: The filepath, relative to the repo root or absolute.
@@ -98,13 +94,12 @@ def get_documents_in_markdown_file(markdown_filepath):
             return doc_path.split('/master/')[1]
         else:
             return markdown_filepath.parent / doc_path
-    with markdown_filepath.open() as markdown_fd:
+    with (base_dir / markdown_filepath).open() as markdown_fd:
         try:
             raw_input_file = extract_yaml(markdown_fd.read())
         except Exception as err:
             _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
             return []
-        _LOGGER.info("Parsing markdown file %s", markdown_filepath)
         return [Path(pathconvert(d)) for d in raw_input_file]
 
 def find_markdown_files(base_dir=Path('.')):
@@ -123,7 +118,7 @@ def get_composite_file_as_json(composite_filepath):
             _LOGGER.critical("Invalid JSON file: %s", composite_filepath)
             raise
 
-def get_documents_in_composite_file(composite_filepath):
+def get_documents_in_composite_file(composite_filepath, base_dir=Path('.')):
     """Get the documents inside this composite file, relative to the repo root.
 
     :params str composite_filepath: The filepath, relative to the repo root or absolute.
@@ -135,7 +130,7 @@ def get_documents_in_composite_file(composite_filepath):
             return doc_path.split('/master/')[1]
         else:
             return composite_filepath.parent / doc_path
-    composite_json = get_composite_file_as_json(composite_filepath)
+    composite_json = get_composite_file_as_json(base_dir / composite_filepath)
     return [Path(pathconvert(d)) for d in composite_json['documents']]
 
 def find_composite_files(base_dir=Path('.')):
@@ -151,7 +146,7 @@ def swagger_index_from_composite(base_dir=Path('.')):
     return {
         doc: composite_file
         for composite_file in find_composite_files(base_dir)
-        for doc in get_documents_in_composite_file(composite_file)
+        for doc in get_documents_in_composite_file(composite_file, base_dir)
     }
 
 def swagger_index_from_markdown(base_dir=Path('.')):
@@ -160,17 +155,21 @@ def swagger_index_from_markdown(base_dir=Path('.')):
     return {
         doc: markdown_file
         for markdown_file in find_markdown_files(base_dir)
-        for doc in get_documents_in_markdown_file(markdown_file)
+        for doc in get_documents_in_markdown_file(markdown_file, base_dir)
     }
 
-def get_swagger_files_in_pr(pr_object):
-    """Get the list of Swagger files in the given PR."""
-    return {Path(file.filename) for file in pr_object.get_files()
+def get_swagger_files_in_git_object(git_object):
+    """Get the list of Swagger files in the given PR or commit"""
+    try:
+        files_list = git_object.get_files() # Try as a PR object
+    except AttributeError:
+        files_list = git_object.files # Try as a commit object
+    return {Path(file.filename) for file in files_list
             if re.match(r"specification/.*\.json", file.filename, re.I)}
 
 def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
     """List project files in the PR, a project file being a Composite/Markdown file or a Swagger file."""
-    swagger_files_in_pr = get_swagger_files_in_pr(pr_object)
+    swagger_files_in_pr = get_swagger_files_in_git_object(pr_object)
     swagger_index = swagger_index_from_composite(base_dir)
     swagger_index.update(swagger_index_from_markdown(base_dir))
     swagger_files_in_pr |= {swagger_index[s]

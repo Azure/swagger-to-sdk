@@ -8,7 +8,7 @@ import re
 import datetime
 from pathlib import Path
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ def get_sdk_local_path(sdk_root, relative_path):
     return build_folder
 
 
-def build_libraries(gh_token, config, project_pattern, restapi_git_folder, sdk_repo, temp_dir, initial_pr, autorest_bin=None):
+def build_libraries(config, project_pattern, restapi_git_folder, sdk_repo, temp_dir, initial_pr, autorest_bin=None):
     """Main method of the the file"""
 
     global_conf = config["meta"]

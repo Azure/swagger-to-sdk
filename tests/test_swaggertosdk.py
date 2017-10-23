@@ -1,5 +1,5 @@
 import unittest.mock
-import os
+import os.path
 import logging
 import tempfile
 from pathlib import Path
@@ -8,19 +8,26 @@ logging.basicConfig(level=logging.INFO)
 # Fake Travis before importing the Script
 os.environ['TRAVIS'] = 'true'
 
-from SwaggerToSdkCore import *
-from markdown_support import *
-import SwaggerToSdkLegacy
-import SwaggerToSdkNewCLI
+from swaggertosdk.SwaggerToSdkCore import *
+from swaggertosdk.markdown_support import *
+import swaggertosdk.SwaggerToSdkLegacy as SwaggerToSdkLegacy
+import swaggertosdk.SwaggerToSdkNewCLI as SwaggerToSdkNewCLI
 
 if not 'GH_TOKEN' in os.environ:
     raise Exception('GH_TOKEN must be defined to do the unitesting')
 GH_TOKEN = os.environ['GH_TOKEN']
 
+CWD = os.path.dirname(os.path.realpath(__file__))
+
 def get_pr(repo_id, pr_number):
     github_client = Github(GH_TOKEN)
     repo = github_client.get_repo(repo_id)
     return repo.get_pull(int(pr_number))
+
+def get_commit(repo_id, sha):
+    github_client = Github(GH_TOKEN)
+    repo = github_client.get_repo(repo_id)
+    return repo.get_commit(sha)
 
 class TestMarkDownSupport(unittest.TestCase):
 
@@ -38,7 +45,7 @@ class TestMarkDownSupport(unittest.TestCase):
         self.assertListEqual([], yaml_content)
 
     def test_extract_md_with_tag(self):
-        docs = get_documents_in_markdown_file(Path('test/readme_tag.md_test'))
+        docs = get_documents_in_markdown_file(Path('files/readme_tag.md_test'), base_dir=Path(CWD))
         self.assertEqual(len(docs), 29, "Not enough document")
 
 class TestSwaggerToSDK(unittest.TestCase):
@@ -52,12 +59,12 @@ class TestSwaggerToSDK(unittest.TestCase):
                 del os.environ[key]
 
     def test_get_swagger_project_files_in_pr(self):
-        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422))
+        swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422), base_dir=Path(CWD))
         for s in swaggers:
             self.assertIsInstance(s, Path)
             self.assertIn(s, [
                 Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'),
-                Path('test/readme.md')
+                Path('files/readme.md')
             ])
         self.assertEqual(len(swaggers), 2)
 
@@ -65,42 +72,47 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertDictEqual(
             {
                 Path('arm-graphrbac/1.6/swagger/graphrbac.json'):
-                    Path('test/compositeGraphRbacManagementClient.json'),
-                Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
-                    Path('test/compositeGraphRbacManagementClient.json')
+                    Path('files/compositeGraphRbacManagementClient.json'),
+                Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
+                    Path('files/compositeGraphRbacManagementClient.json')
             },
-            swagger_index_from_composite()
+            swagger_index_from_composite(Path(CWD))
         )
 
     def test_swagger_index_from_markdown(self):
         self.assertDictEqual(
             {
                 Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'):
-                    Path('test/readme.md'),
+                    Path('files/readme.md'),
             },
-            swagger_index_from_markdown()
+            swagger_index_from_markdown(Path(CWD))
         )
 
     def test_get_doc_composite(self):
-        composite_path = Path('test/compositeGraphRbacManagementClient.json')
-        documents = get_documents_in_composite_file(composite_path)
+        composite_path = Path('files/compositeGraphRbacManagementClient.json')
+        documents = get_documents_in_composite_file(composite_path, base_dir=Path(CWD))
         self.assertEqual(len(documents), 2)
         self.assertEqual(documents[0], Path('arm-graphrbac/1.6/swagger/graphrbac.json'))
-        self.assertEqual(documents[1], Path('test/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
+        self.assertEqual(documents[1], Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
 
     def test_find_composite_files(self):
-        files = find_composite_files()
-        self.assertEqual(files[0], Path('test/compositeGraphRbacManagementClient.json'))
+        files = find_composite_files(Path(CWD))
+        self.assertEqual(files[0], Path('files/compositeGraphRbacManagementClient.json'))
 
-    def test_get_pr_files(self):
-        # Basic test, one Swagger file only
+    def test_get_git_files(self):
+        # Basic test, one Swagger file only (PR)
         self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422)),
+            get_swagger_files_in_git_object(get_pr('Azure/azure-rest-api-specs', 1422)),
             {Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json')}
+        )
+        # Basic test, one Swagger file only (commit)
+        self.assertSetEqual(
+            get_swagger_files_in_git_object(get_commit('Azure/azure-rest-api-specs', 'ae25a0505f86349bbe92251dde34d70bfb6be78a')),
+            {Path('specification/cognitiveservices/data-plane/EntitySearch/v1.0/EntitySearch.json')}
         )
         # Should not find Swagger and not fails
         self.assertSetEqual(
-            get_swagger_files_in_pr(get_pr('Azure/azure-sdk-for-python', 627)),
+            get_swagger_files_in_git_object(get_pr('Azure/azure-sdk-for-python', 627)),
             set()
         )
 
@@ -316,7 +328,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
-            },"markdown":"c"}
+            }, "markdown":"c"}
         )
         self.assertEqual(Path('c'), main)
         self.assertEqual([Path('a'), Path('b')], opt)
@@ -367,7 +379,6 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_build(self):
         build = build_file_content('123')
         self.assertEqual('123', build['autorest'])
-        self.assertTrue(build['date'].startswith("20"))
 
     def test_update(self):
         with tempfile.TemporaryDirectory() as temp_dir:

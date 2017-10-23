@@ -3,11 +3,18 @@ import shutil
 import subprocess
 import logging
 import json
-import re
-import yaml
 import os.path
+from pathlib import Path
+import yaml
 
-from SwaggerToSdkCore import *
+from .SwaggerToSdkCore import (
+    build_file_content,
+    merge_options,
+    LATEST_TAG,
+    get_documents_in_composite_file,
+    get_swagger_project_files_in_pr,
+    get_composite_file_as_json
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -144,6 +151,7 @@ def get_input_paths(global_conf, local_conf):
     - Input-file Paths or empty list
     - Composite file or None
     """
+    del global_conf # Unused
 
     relative_markdown_path = None # Markdown is optional
     input_files = [] # Input file could be empty
@@ -175,11 +183,11 @@ def convert_composite_to_markdown(composite_full_path):
     }
     configuration_as_yaml = yaml.dump(configuration, default_flow_style=False)
     configuration_as_md = f"# My API\n> see https://aka.ms/autorest\n```yaml\n{configuration_as_yaml}\n```\n"
-    _LOGGER.warn(f"Built MD file from composite:\n{configuration_as_md}")
+    _LOGGER.warning(f"Built MD file from composite:\n{configuration_as_md}")
     return configuration_as_md
 
 
-def build_libraries(gh_token, config, project_pattern, restapi_git_folder, sdk_repo, temp_dir, initial_pr, autorest_bin=None):
+def build_libraries(config, project_pattern, restapi_git_folder, sdk_repo, temp_dir, initial_pr, autorest_bin=None):
     """Main method of the the file"""
 
     global_conf = config["meta"]
@@ -228,4 +236,3 @@ def build_libraries(gh_token, config, project_pattern, restapi_git_folder, sdk_r
                       local_conf,
                       autorest_bin)
         update(absolute_generated_path, sdk_repo.working_tree_dir, global_conf, local_conf)
-
