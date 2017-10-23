@@ -100,7 +100,6 @@ def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
         except Exception as err:
             _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
             return []
-        _LOGGER.info("Parsing markdown file %s", markdown_filepath)
         return [Path(pathconvert(d)) for d in raw_input_file]
 
 def find_markdown_files(base_dir=Path('.')):
