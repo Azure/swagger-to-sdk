@@ -2,9 +2,10 @@ import argparse
 import logging
 from io import open
 from pathlib import Path
+import tempfile
 
-from SwaggerToSdkNewCLI import *
-from SwaggerToSdkCore import *
+from swaggertosdk.SwaggerToSdkNewCLI import *
+from swaggertosdk.SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
