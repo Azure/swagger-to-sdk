@@ -328,7 +328,7 @@ class TestSwaggerToSDK(unittest.TestCase):
             {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
-            },"markdown":"c"}
+            }, "markdown":"c"}
         )
         self.assertEqual(Path('c'), main)
         self.assertEqual([Path('a'), Path('b')], opt)

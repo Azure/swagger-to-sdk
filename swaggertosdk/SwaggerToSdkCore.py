@@ -1,16 +1,14 @@
 import os
 import logging
-import tempfile
 import json
 import re
 import shutil
 import stat
-import datetime
 import subprocess
 from pathlib import Path
 from contextlib import contextmanager
 
-from git import Repo, GitCommandError
+from git import Repo
 from github import Github, GithubException
 
 from .markdown_support import extract_yaml
@@ -30,7 +28,7 @@ IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
 
 def build_file_content(autorest_version):
-    if autorest_version==LATEST_TAG:
+    if autorest_version == LATEST_TAG:
         autorest_version = autorest_latest_version_finder()
     autorest_bootstrap_version = autorest_bootstrap_version_finder()
     return {

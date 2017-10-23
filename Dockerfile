@@ -2,7 +2,7 @@ FROM ubuntu:16.04
 
 USER root
 
-MAINTAINER lmazuel
+LABEL maintainer="lmazuel"
 
 # Basic Ubuntu packages (libunwind for .NET)
 RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8
