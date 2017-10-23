@@ -379,7 +379,6 @@ class TestSwaggerToSDK(unittest.TestCase):
     def test_build(self):
         build = build_file_content('123')
         self.assertEqual('123', build['autorest'])
-        self.assertTrue(build['date'].startswith("20"))
 
     def test_update(self):
         with tempfile.TemporaryDirectory() as temp_dir:
