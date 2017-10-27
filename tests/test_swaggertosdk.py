@@ -168,6 +168,23 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertListEqual(call_args[0][0], expected)
         self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
 
+        SwaggerToSdkNewCLI.generate_code(
+            '/a/b/c/swagger.md',
+            Path('/'),
+            {},
+            {},
+            autorest_bin = "node autorest"
+        )
+        call_args = mocked_check_output.call_args
+        expected = [
+            'node',
+            'autorest',
+            '--version=latest',
+            '/a/b/c/swagger.md',
+            '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
+        ]
+        self.assertListEqual(call_args[0][0], expected)
+
 
     @unittest.mock.patch('subprocess.check_output')
     def test_generate_code_no_autorest_in_path(self, mocked_check_output):

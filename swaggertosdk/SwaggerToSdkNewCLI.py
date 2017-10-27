@@ -35,8 +35,11 @@ def build_autorest_options(global_conf, local_conf):
     ]
 
 def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=None):
-    """Call the Autorest process with the given parameters"""
+    """Call the Autorest process with the given parameters.
 
+    Input file can be a Path instance, a str (will be cast to Path), or a str starting with
+    http (will be passed to Autorest as is).
+    """
     autorest_version = global_conf.get("autorest", LATEST_TAG)
 
     if not autorest_bin:
@@ -49,12 +52,17 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     params += build_autorest_options(global_conf, local_conf)
 
     input_files = local_conf.get("autorest_options", {}).get("input-file", [])
-    if input_file:
-        input_path = input_file.parent
-    elif input_files:
-        input_path = input_files[0].parent
-    else:
+
+    if not input_file and not input_files:
         raise ValueError("I don't have input files!")
+
+    path_input_files = [pit for pit in input_files if isinstance(pit, Path)]
+    if input_file and isinstance(input_file, Path):
+        input_path = input_file.parent
+    elif path_input_files:
+        input_path = path_input_files[0].parent
+    else:
+        input_path = Path(".")
 
     cmd_line = autorest_bin.split()
     cmd_line += ["--version={}".format(str(autorest_version))]
