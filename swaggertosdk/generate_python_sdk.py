@@ -52,6 +52,7 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                           local_conf,
                           autorest_bin)
             update(absolute_generated_path, sdk_folder, global_conf, local_conf)
+            execute_after_script(sdk_folder, global_conf, local_conf)
 
 
 def generate_main():
