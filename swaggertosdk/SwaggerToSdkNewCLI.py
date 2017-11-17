@@ -69,11 +69,19 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     cmd_line += params
     _LOGGER.info("Autorest cmd line:\n%s", " ".join(cmd_line))
 
+    execute_simple_command(cmd_line, cwd=str(input_path))
+    # Checks that Autorest did something!
+    if not output_dir.is_dir() or next(output_dir.iterdir(), None) is None:
+        raise ValueError("Autorest call ended with 0, but no files were generated")
+
+
+def execute_simple_command(cmd_line, cwd=None, shell=False):
     try:
         result = subprocess.check_output(cmd_line,
                                          stderr=subprocess.STDOUT,
                                          universal_newlines=True,
-                                         cwd=str(input_path))
+                                         cwd=cwd,
+                                         shell=shell)
     except subprocess.CalledProcessError as err:
         _LOGGER.error(err)
         _LOGGER.error(err.output)
@@ -83,9 +91,6 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
         raise
     else:
         _LOGGER.info(result)
-    # Checks that Autorest did something!
-    if not output_dir.is_dir() or next(output_dir.iterdir(), None) is None:
-        raise ValueError("Autorest call ended with 0, but no files were generated")
 
 
 def update(client_generated_path, sdk_root, global_conf, local_conf):
@@ -142,6 +147,14 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
         autorest_version = global_conf.get("autorest", LATEST_TAG)
         with open(build_file, 'w') as build_fd:
             json.dump(build_file_content(autorest_version), build_fd, indent=2)
+
+
+def execute_after_script(sdk_root, global_conf, local_conf):
+    after_scripts = merge_options(global_conf, local_conf, "after_scripts") or []
+    for script in after_scripts:
+        _LOGGER.info("Execute after script: %s", script)
+        execute_simple_command(script, cwd=sdk_root, shell=True)
+
 
 def get_local_path_dir(root, relative_path):
     build_folder = Path(root, relative_path)
@@ -244,3 +257,4 @@ def build_libraries(config, project_pattern, restapi_git_folder, sdk_repo, temp_
                       local_conf,
                       autorest_bin)
         update(absolute_generated_path, sdk_repo.working_tree_dir, global_conf, local_conf)
+        execute_after_script(sdk_repo.working_tree_dir, global_conf, local_conf)
