@@ -58,7 +58,6 @@ This is a configuration which MUST be at the root of the repository you wants to
 {
   "meta": {
     "version":"0.2.0",
-    "autorest": "latest",
     "autorest_options": {
       "license-header": "MICROSOFT_MIT_NO_VERSION",
       "payload-flattening-threshold": 2,
@@ -105,10 +104,6 @@ This is a configuration which MUST be at the root of the repository you wants to
 
 ### version
 The version must be 0.2.0.
-
-### autorest
-This the version to use from Autorest. Could be "latest" to download the latest nightly build. Could be a string like  '0.16.0-Nightly20160410' to download a specific version.
-If node is not present, consider "latest".
 
 ## autorest_options
 An optional dictionary of options you want to pass to Autorest. This will be passed in any call, but can be override by "autorest_options" in each data.

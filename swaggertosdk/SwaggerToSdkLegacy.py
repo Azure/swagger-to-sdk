@@ -27,7 +27,7 @@ def generate_code(language, swagger_file, output_dir, global_conf, local_conf, a
     """Call the Autorest process with the given parameters"""
 
     autorest_options = build_autorest_options(language, global_conf, local_conf)
-    autorest_version = global_conf.get("autorest", LATEST_TAG)
+    autorest_version = global_conf.get("autorest", "latest")
 
     swagger_path = swagger_file.parent
 
@@ -109,13 +109,6 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
     # client_generated_path.replace(destination_folder)
     shutil.move(client_generated_path, destination_folder)
 
-    build_dir = local_conf.get('build_dir')
-    if build_dir:
-        build_folder = get_sdk_local_path(sdk_root, build_dir)
-        build_file = Path(build_folder, "build.json")
-        autorest_version = global_conf.get("autorest", LATEST_TAG)
-        with open(build_file, 'w') as build_fd:
-            json.dump(build_file_content(autorest_version), build_fd)
 
 def get_sdk_local_path(sdk_root, relative_path):
     build_folder = Path(sdk_root, relative_path)
