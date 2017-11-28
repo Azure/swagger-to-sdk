@@ -10,7 +10,6 @@ import yaml
 from .SwaggerToSdkCore import (
     build_file_content,
     merge_options,
-    LATEST_TAG,
     get_documents_in_composite_file,
     get_swagger_project_files_in_pr,
     get_composite_file_as_json
@@ -40,8 +39,6 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
     Input file can be a Path instance, a str (will be cast to Path), or a str starting with
     http (will be passed to Autorest as is).
     """
-    autorest_version = global_conf.get("autorest", LATEST_TAG)
-
     if not autorest_bin:
         autorest_bin = shutil.which("autorest")
     if not autorest_bin:
@@ -65,7 +62,6 @@ def generate_code(input_file, output_dir, global_conf, local_conf, autorest_bin=
         input_path = Path(".")
 
     cmd_line = autorest_bin.split()
-    cmd_line += ["--version={}".format(str(autorest_version))]
     cmd_line += params
     _LOGGER.info("Autorest cmd line:\n%s", " ".join(cmd_line))
 
@@ -144,9 +140,8 @@ def update(client_generated_path, sdk_root, global_conf, local_conf):
     if build_dir:
         build_folder = get_local_path_dir(sdk_root, build_dir)
         build_file = Path(build_folder, "build.json")
-        autorest_version = global_conf.get("autorest", LATEST_TAG)
         with open(build_file, 'w') as build_fd:
-            json.dump(build_file_content(autorest_version), build_fd, indent=2)
+            json.dump(build_file_content(), build_fd, indent=2)
 
 
 def execute_after_script(sdk_root, global_conf, local_conf):

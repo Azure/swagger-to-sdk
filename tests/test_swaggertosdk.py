@@ -157,7 +157,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         expected = [
             'node',
             'myautorest',
-            '--version=latest',
             str(Path('/a/b/c/swagger.md')),
             '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
             '--azure-arm=True',
@@ -179,7 +178,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         expected = [
             'node',
             'autorest',
-            '--version=latest',
             '/a/b/c/swagger.md',
             '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
         ]
@@ -393,11 +391,14 @@ class TestSwaggerToSDK(unittest.TestCase):
 
         # FIXME - more tests
 
-    def test_build(self):
-        build = build_file_content('123')
-        self.assertEqual('123', build['autorest'])
+    @unittest.mock.patch('swaggertosdk.SwaggerToSdkCore.autorest_latest_version_finder')
+    def test_build(self, mocked_autorest_latest_version_finder):
+        build = build_file_content()
+        self.assertIn('autorest', build)
 
-    def test_update(self):
+    @unittest.mock.patch('swaggertosdk.SwaggerToSdkCore.autorest_latest_version_finder')
+    def test_update(self, mocked_autorest_latest_version_finder):
+        mocked_autorest_latest_version_finder.return_value = '123'
         with tempfile.TemporaryDirectory() as temp_dir:
             generated = Path(temp_dir, 'generated')
             generated.mkdir()
@@ -428,8 +429,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                         'dont_exist_no_big_deal_2.txt',
                         'del_folder'
                     ],
-                    'generated_relative_base_directory': '*side',
-                    'autorest': '123'}, 
+                    'generated_relative_base_directory': '*side'}, 
                     {
                         'output_dir': '.',
                         'build_dir': '.'

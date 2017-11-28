@@ -15,8 +15,6 @@ from .markdown_support import extract_yaml
 
 _LOGGER = logging.getLogger(__name__)
 
-LATEST_TAG = 'latest'
-
 CONFIG_FILE = 'swagger_to_sdk_config.json'
 
 DEFAULT_BRANCH_NAME = 'autorest'
@@ -27,9 +25,8 @@ DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
 
 
-def build_file_content(autorest_version):
-    if autorest_version == LATEST_TAG:
-        autorest_version = autorest_latest_version_finder()
+def build_file_content():
+    autorest_version = autorest_latest_version_finder()
     autorest_bootstrap_version = autorest_bootstrap_version_finder()
     return {
         'autorest': autorest_version,
