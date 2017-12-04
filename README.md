@@ -62,7 +62,8 @@ This is a configuration which MUST be at the root of the repository you wants to
       "license-header": "MICROSOFT_MIT_NO_VERSION",
       "payload-flattening-threshold": 2,
       "python": "",
-      "azure-arm": true
+      "azure-arm": true,
+      "sdkrel:python-sdks-folder": "."
     },
     "wrapper_filesOrDirs": [],
     "delete_filesOrDirs": [
@@ -108,6 +109,7 @@ The version must be 0.2.0.
 ## autorest_options
 An optional dictionary of options you want to pass to Autorest. This will be passed in any call, but can be override by "autorest_options" in each data.
 Note that you CAN'T override "--output-folder" which is filled contextually.
+All options prefixed by "sdkrel:" can be a relative path that will be solved against SDK folder before being sent to Autorest.
 
 ## wrapper_filesOrDirs
 An optional list of files/directory to keep when we generate new SDK. This support a Bash-like wildcard syntax (i.e. '*/myfile?.py').
