@@ -203,28 +203,29 @@ def convert_composite_to_markdown(composite_full_path):
     return configuration_as_md
 
 
-def solve_relative_path(conf, sdk_root):
+def solve_relative_path(autorest_options, sdk_root):
     """Solve relative path in conf.
 
     If a key is prefixed by "sdkrel:", it's solved against SDK root.
     """
     SDKRELKEY = "sdkrel:"
-    solved_conf = {}
-    for key, value in conf.items():
+    solved_autorest_options = {}
+    for key, value in autorest_options.items():
         if key.startswith(SDKRELKEY):
+            _LOGGER.debug("Found a sdkrel pair: %s/%s", key, value)
             subkey = key[len(SDKRELKEY):]
             solved_value = Path(sdk_root, value).resolve()
-            solved_conf[subkey] = str(solved_value)
+            solved_autorest_options[subkey] = str(solved_value)
         else:
-            solved_conf[key] = value
-    return solved_conf
+            solved_autorest_options[key] = value
+    return solved_autorest_options
 
 
 def build_libraries(config, project_pattern, restapi_git_folder, sdk_repo, temp_dir, initial_pr, autorest_bin=None):
     """Main method of the the file"""
 
     global_conf = config["meta"]
-    global_conf = solve_relative_path(global_conf, sdk_repo.working_tree_dir)
+    global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_repo.working_tree_dir)
 
     swagger_files_in_pr = get_swagger_project_files_in_pr(initial_pr, restapi_git_folder) if initial_pr else set()
     _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
@@ -233,7 +234,7 @@ def build_libraries(config, project_pattern, restapi_git_folder, sdk_repo, temp_
         if project_pattern and not any(project.startswith(p) for p in project_pattern):
             _LOGGER.info("Skip project %s", project)
             continue
-        local_conf = solve_relative_path(local_conf, sdk_repo.working_tree_dir)
+        local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_repo.working_tree_dir)
 
         markdown_relative_path, optional_relative_paths, composite_relative_path = get_input_paths(global_conf, local_conf)
 

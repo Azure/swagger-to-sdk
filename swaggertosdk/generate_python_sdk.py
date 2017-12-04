@@ -15,7 +15,7 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
     config = read_config(sdk_folder, config_path)
 
     global_conf = config["meta"]
-    global_conf = solve_relative_path(global_conf, sdk_folder)
+    global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_folder)
     restapi_git_folder = Path(restapi_git_folder).expanduser()
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -23,7 +23,7 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
             if project_pattern and not any(project.startswith(p) for p in project_pattern):
                 _LOGGER.info("Skip project %s", project)
                 continue
-            local_conf = solve_relative_path(local_conf, sdk_folder)
+            local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_folder)
 
             markdown_relative_path, optional_relative_paths, composite_relative_path = get_input_paths(global_conf, local_conf)
 
