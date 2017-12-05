@@ -47,14 +47,15 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                 with open(absolute_markdown_path, "w", encoding="utf-8") as tmp_fd:
                     tmp_fd.write(md_content_from_composite)
 
-            absolute_generated_path = Path(temp_dir, project)
-            generate_code(absolute_markdown_path,
-                          absolute_generated_path,
-                          global_conf,
-                          local_conf,
-                          autorest_bin)
-            update(absolute_generated_path, sdk_folder, global_conf, local_conf)
-            execute_after_script(sdk_folder, global_conf, local_conf)
+            build_project(
+                temp_dir,
+                project,
+                absolute_markdown_path,
+                sdk_folder,
+                global_conf,
+                local_conf,
+                autorest_bin
+            )
 
 
 def generate_main():

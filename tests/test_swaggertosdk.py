@@ -155,7 +155,6 @@ class TestSwaggerToSDK(unittest.TestCase):
 
         SwaggerToSdkNewCLI.generate_code(
             Path('/a/b/c/swagger.md'),
-            Path('/'),
             {"autorest_markdown_cli": True},
             {"autorest_options":{
                 "java": '',
@@ -163,6 +162,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                 "description": "I am a spaced description",
                 'input-file': [Path('/a/b/c/swagger.json')]}
             },
+            Path('/'),
             "node myautorest"
         )
         call_args = mocked_check_output.call_args
@@ -181,9 +181,9 @@ class TestSwaggerToSDK(unittest.TestCase):
 
         SwaggerToSdkNewCLI.generate_code(
             '/a/b/c/swagger.md',
-            Path('/'),
             {},
             {},
+            Path('/'),            
             autorest_bin = "node autorest"
         )
         call_args = mocked_check_output.call_args
@@ -202,9 +202,9 @@ class TestSwaggerToSDK(unittest.TestCase):
             which.return_value = None
             SwaggerToSdkNewCLI.generate_code(
                 Path('/a/b/c/swagger.json'),
-                Path(temp_dir),
                 {},
-                {}
+                {},
+                Path(temp_dir),                
             )
         the_exception = cm.exception
         print(str(the_exception))
@@ -216,10 +216,10 @@ class TestSwaggerToSDK(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm:
             SwaggerToSdkNewCLI.generate_code(
                 Path('/a/b/c/swagger.json'),
-                Path(temp_dir),
                 {},
                 {},
-                "node autorest"
+                Path(temp_dir),               
+                "node autorest",
             )
         the_exception = cm.exception
         self.assertTrue("no files were generated" in str(the_exception))
@@ -408,9 +408,118 @@ class TestSwaggerToSDK(unittest.TestCase):
         build = build_file_content()
         self.assertIn('autorest', build)
 
+    def test_move_wrapper_files_or_dirs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir, 'output')
+            output.mkdir()
+
+            save_dest = Path(temp_dir, 'save')
+            save_dest.mkdir()
+
+            Path(output, 'folder').mkdir()
+            Path(output, 'to_keep.txt').write_bytes(b'My content')
+            Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
+
+            SwaggerToSdkNewCLI.move_wrapper_files_or_dirs(
+                output,
+                save_dest,
+                {'wrapper_filesOrDirs': [
+                    'to_keep.txt',
+                    'to_*_pattern.txt',
+                    'dont_exist_no_big_deal.txt',
+                    'folder'
+                ]},
+                {
+                    'output_dir': '.'
+                }
+            )
+
+            self.assertTrue(Path(save_dest, 'to_keep.txt').exists())
+            self.assertTrue(Path(save_dest, 'to_keep_pattern.txt').exists())
+            self.assertTrue(Path(save_dest, 'folder').exists())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir, 'output')
+            output.mkdir()
+            subdir = Path(output, 'subdir')
+            subdir.mkdir()
+
+            save_dest = Path(temp_dir, 'save')
+            save_dest.mkdir()
+
+            Path(subdir, 'folder').mkdir()
+            Path(subdir, 'to_keep.txt').write_bytes(b'My content')
+            Path(subdir, 'to_keep_pattern.txt').write_bytes(b'My content')
+
+            SwaggerToSdkNewCLI.move_wrapper_files_or_dirs(
+                output,
+                save_dest,
+                {'wrapper_filesOrDirs': [
+                    'to_keep.txt',
+                    'to_*_pattern.txt',
+                    'dont_exist_no_big_deal.txt',
+                    'folder'
+                ]},
+                {
+                    'output_dir': 'subdir'
+                }
+            )
+
+            save_sub = Path(save_dest, 'subdir')
+            self.assertTrue(Path(save_sub, 'to_keep.txt').exists())
+            self.assertTrue(Path(save_sub, 'to_keep_pattern.txt').exists())
+            self.assertTrue(Path(save_sub, 'folder').exists())
+
+    def test_delete_extra_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = Path(temp_dir, 'output')
+            output.mkdir()
+
+            Path(output, 'generated.txt').write_bytes(b'My content')
+            Path(output, 'dont_need_this.txt').write_bytes(b'My content')
+            Path(output, 'del_folder').mkdir()
+
+            SwaggerToSdkNewCLI.delete_extra_files(
+                output,
+                {'delete_filesOrDirs': [
+                    'dont_need_this.txt',
+                    'dont_exist_no_big_deal_2.txt',
+                    'del_folder'
+                ]},
+                {}
+            )
+
+            self.assertFalse(Path(output, 'erase.txt').exists())
+            self.assertFalse(Path(output, 'dont_need_this.txt').exists())
+            self.assertFalse(Path(output, 'del_folder').exists())
+
     @unittest.mock.patch('swaggertosdk.SwaggerToSdkCore.autorest_latest_version_finder')
-    def test_update(self, mocked_autorest_latest_version_finder):
+    def test_write_build_file(self, mocked_autorest_latest_version_finder):
         mocked_autorest_latest_version_finder.return_value = '123'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            SwaggerToSdkNewCLI.write_build_file(
+                temp_dir,
+                {
+                    'build_dir': '.'
+                }
+            )
+            with open(Path(temp_dir, 'build.json'), 'r') as build_fd:
+                data = json.load(build_fd)
+                self.assertEqual('123', data['autorest'])
+
+            output = Path(temp_dir, 'output')
+            output.mkdir()
+            SwaggerToSdkNewCLI.write_build_file(
+                temp_dir,
+                {
+                    'build_dir': 'output'
+                }
+            )
+            with open(Path(output, 'build.json'), 'r') as build_fd:
+                data = json.load(build_fd)
+                self.assertEqual('123', data['autorest'])
+
+    def test_move_autorest_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             generated = Path(temp_dir, 'generated')
             generated.mkdir()
@@ -421,44 +530,19 @@ class TestSwaggerToSDK(unittest.TestCase):
             output.mkdir()
 
             Path(generated_subfolder, 'generated.txt').write_bytes(b'My content')
-            Path(generated_subfolder, 'dont_need_this.txt').write_bytes(b'My content')
-            Path(generated_subfolder, 'del_folder').mkdir()
-            Path(output, 'folder').mkdir()
-            Path(output, 'to_keep.txt').write_bytes(b'My content')
-            Path(output, 'to_keep_pattern.txt').write_bytes(b'My content')
             Path(output, 'erase.txt').write_bytes(b'My content')
 
-            SwaggerToSdkNewCLI.update(generated,
-                   output,
-                   {'wrapper_filesOrDirs': [
-                       'to_keep.txt',
-                       'to_*_pattern.txt',
-                       'dont_exist_no_big_deal.txt',
-                       'folder'
-                   ],
-                    'delete_filesOrDirs': [
-                        'dont_need_this.txt',
-                        'dont_exist_no_big_deal_2.txt',
-                        'del_folder'
-                    ],
-                    'generated_relative_base_directory': '*side'}, 
-                    {
-                        'output_dir': '.',
-                        'build_dir': '.'
-                    }
-                  )
+            SwaggerToSdkNewCLI.move_autorest_files(
+                generated,
+                output,
+                {'generated_relative_base_directory': '*side'}, 
+                {
+                    'output_dir': '.'
+                }
+            )
 
             self.assertTrue(Path(output, 'generated.txt').exists())
-            self.assertTrue(Path(output, 'to_keep.txt').exists())
-            self.assertTrue(Path(output, 'to_keep_pattern.txt').exists())
-            self.assertTrue(Path(output, 'folder').exists())
-            self.assertTrue(Path(output, 'build.json').exists())
             self.assertFalse(Path(output, 'erase.txt').exists())
-            self.assertFalse(Path(output, 'dont_need_this.txt').exists())
-            self.assertFalse(Path(output, 'del_folder').exists())
-            with open(Path(output, 'build.json'), 'r') as build_fd:
-                data = json.load(build_fd)
-                self.assertEqual('123', data['autorest'])
 
 
 if __name__ == '__main__':
