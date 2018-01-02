@@ -1,0 +1,176 @@
+{
+    "directive": [
+      {
+        "from": "swagger-document",
+        "where": "$.definitions.*.additionalProperties",
+        "transform": "return typeof $ === \"boolean\"\n  ? ($ ? { type: \"object\" } : undefined)\n  : $\n",
+        "reason": "polyfill"
+      }
+    ],
+    "input-file": [
+      "Microsoft.Cdn/2017-04-02/cdn.json"
+    ],
+    "output-artifact": [
+      "configuration.json"
+    ],
+    "require": [],
+    "use": [],
+    "perform-load": false,
+    "use-extension": {},
+    "swagger-to-sdk": [
+      {},
+      {
+        "repo": "Azure/azure-sdk-for-python"
+      }
+    ],
+    "output-folder": "C:\\Users\\lmazuel\\Git\\azure-rest-api-specs",
+    "openapi-type": "arm",
+    "tag": "package-2017-04",
+    "__info": "yaml",
+    "azure-arm": false,
+    "pipeline": {
+      "pipeline-emitter": {
+        "scope": "scope-pipeline-emitter",
+        "suffixes": [
+          ""
+        ]
+      },
+      "configuration-emitter": {
+        "scope": "scope-configuration-emitter",
+        "suffixes": [
+          ""
+        ]
+      },
+      "swagger-document-override/md-override-loader": {
+        "output-artifact": "immediate-config",
+        "scope": "perform-load",
+        "suffixes": []
+      },
+      "swagger-document/loader": {
+        "output-artifact": "swagger-document",
+        "scope": "perform-load",
+        "suffixes": []
+      },
+      "swagger-document/individual/transform": {
+        "input": "loader",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/individual/schema-validator": {
+        "input": "transform",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/individual/identity": {
+        "input": "schema-validator",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/compose": {
+        "input": "individual/identity",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/transform-immediate": {
+        "input": [
+          "swagger-document-override/md-override-loader",
+          "compose"
+        ],
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/transform": {
+        "input": "transform-immediate",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/identity": {
+        "input": "transform",
+        "output-artifact": "swagger-document",
+        "suffixes": []
+      },
+      "swagger-document/emitter": {
+        "input": "identity",
+        "scope": "scope-swagger-document/emitter",
+        "suffixes": []
+      },
+      "openapi-document/openapi-document-converter": {
+        "input": "swagger-document/identity",
+        "output-artifact": "openapi-document",
+        "suffixes": []
+      },
+      "openapi-document/transform": {
+        "input": "openapi-document-converter",
+        "output-artifact": "openapi-document",
+        "suffixes": []
+      },
+      "openapi-document/component-modifiers": {
+        "input": "transform",
+        "output-artifact": "openapi-document",
+        "suffixes": []
+      },
+      "openapi-document/identity": {
+        "input": "component-modifiers",
+        "output-artifact": "openapi-document",
+        "suffixes": []
+      },
+      "openapi-document/emitter": {
+        "input": "identity",
+        "scope": "scope-openapi-document/emitter",
+        "suffixes": []
+      },
+      "swagger-document/model-validator": {
+        "input": "swagger-document/identity",
+        "scope": "model-validator",
+        "suffixes": []
+      },
+      "swagger-document/semantic-validator": {
+        "input": "swagger-document/identity",
+        "scope": "semantic-validator",
+        "suffixes": []
+      }
+    },
+    "scope-pipeline-emitter": {
+      "input-artifact": "pipeline",
+      "is-object": true,
+      "output-uri-expr": "\"pipeline\"\n"
+    },
+    "scope-configuration-emitter": {
+      "input-artifact": "configuration",
+      "is-object": true,
+      "output-uri-expr": "\"configuration\"\n"
+    },
+    "scope-swagger-document/emitter": {
+      "input-artifact": "swagger-document",
+      "is-object": true,
+      "output-uri-expr": "$config[\"output-file\"] || \n($config.namespace ? $config.namespace.replace(/:/g,'_') : undefined) || \n$config[\"input-file\"][0].split('/').reverse()[0].split('\\\\').reverse()[0].replace(/\\.json$/, \"\")\n"
+    },
+    "scope-openapi-document/emitter": {
+      "input-artifact": "openapi-document",
+      "is-object": true,
+      "output-uri-expr": "$config[\"output-file\"] || \n($config.namespace ? $config.namespace.replace(/:/g,'_') : undefined) || \n$config[\"input-file\"][0].split('/').reverse()[0].split('\\\\').reverse()[0].replace(/\\.json$/, \"\")\n"
+    },
+    "scope-cm/emitter": {
+      "input-artifact": "code-model-v1",
+      "is-object": true,
+      "output-uri-expr": "\"code-model-v1\"\n"
+    },
+    "client-side-validation": true,
+    "declare-directive": {
+      "set": "{ transform: `return ${JSON.stringify($)}` }",
+      "where-operation": "(() => {\n  switch ($context.from) {\n    case \"code-model-v1\":\n      return { from: \"code-model-v1\", where: `$.operations[*].methods[?(@.serializedName == ${JSON.stringify($)})]` };\n    case \"swagger-document\":\n    default:\n      return { from: \"swagger-document\", where: `$.paths.*[?(@.operationId == ${JSON.stringify($)})]` };\n  }\n})()",
+      "where-model": "(() => {\n  switch ($context.from) {\n    case \"code-model-v1\":\n      throw \"not implemented\";\n    case \"swagger-document\":\n    default:\n      return { from: \"swagger-document\", where: `$.definitions[${JSON.stringify($)}]` };\n  }\n})()",
+      "remove-operation": "{\n  from: 'swagger-document',\n  \"where-operation\": $,\n  transform: 'return undefined'\n}",
+      "rename-operation": "{\n  from: 'swagger-document',\n  \"where-operation\": $.from,\n  transform: `$.operationId = ${JSON.stringify($.to)}`\n}",
+      "remove-model": "{\n  from: 'swagger-document',\n  \"where-model\": $,\n  transform: 'return undefined'\n}",
+      "rename-model": "[{\n  from: 'swagger-document',\n  where: '$.definitions',\n  transform: `if ($[${JSON.stringify($.from)}]) { $[${JSON.stringify($.to)}] = $[${JSON.stringify($.from)}]; delete $[${JSON.stringify($.from)}]; }`\n}, {\n  from: 'swagger-document',\n  where: `$..['$ref']`,\n  transform: `$ = $ === \"#/definitions/${$.from}\" ? \"#/definitions/${$.to}\" : $`\n}]",
+      "remove-property": "{\n  from: 'swagger-document',\n  transform: `delete $.properties[${JSON.stringify($)}]`\n}",
+      "rename-property": "{\n  from: 'swagger-document',\n  transform: `if ($.properties[${JSON.stringify($.from)}]) { $.properties[${JSON.stringify($.to)}] = $.properties[${JSON.stringify($.from)}]; delete $.properties[${JSON.stringify($.from)}]; }`\n}"
+    },
+    "used-extension": [],
+    "base-folder": ".",
+    "debug": false,
+    "verbose": false,
+    "disable-validation": false,
+    "__status": {}
+  }

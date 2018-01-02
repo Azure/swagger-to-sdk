@@ -10,7 +10,6 @@ os.environ['TRAVIS'] = 'true'
 
 from swaggertosdk.SwaggerToSdkCore import *
 from swaggertosdk.markdown_support import *
-import swaggertosdk.SwaggerToSdkLegacy as SwaggerToSdkLegacy
 import swaggertosdk.SwaggerToSdkNewCLI as SwaggerToSdkNewCLI
 
 if not 'GH_TOKEN' in os.environ:
@@ -80,16 +79,6 @@ class TestSwaggerToSDK(unittest.TestCase):
             ])
         self.assertEqual(len(swaggers), 2)
 
-    def test_swagger_index_from_composite(self):
-        self.assertDictEqual(
-            {
-                Path('arm-graphrbac/1.6/swagger/graphrbac.json'):
-                    Path('files/compositeGraphRbacManagementClient.json'),
-                Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'):
-                    Path('files/compositeGraphRbacManagementClient.json')
-            },
-            swagger_index_from_composite(Path(CWD))
-        )
 
     def test_swagger_index_from_markdown(self):
         self.assertDictEqual(
@@ -100,22 +89,17 @@ class TestSwaggerToSDK(unittest.TestCase):
             swagger_index_from_markdown(Path(CWD))
         )
 
-    def test_get_doc_composite(self):
-        composite_path = Path('files/compositeGraphRbacManagementClient.json')
-        documents = get_documents_in_composite_file(composite_path, base_dir=Path(CWD))
-        self.assertEqual(len(documents), 2)
-        self.assertEqual(documents[0], Path('arm-graphrbac/1.6/swagger/graphrbac.json'))
-        self.assertEqual(documents[1], Path('files/arm-graphrbac/1.6-internal/swagger/graphrbac.json'))
-
-    def test_find_composite_files(self):
-        files = find_composite_files(Path(CWD))
-        self.assertEqual(files[0], Path('files/compositeGraphRbacManagementClient.json'))
 
     def test_get_git_files(self):
         # Basic test, one Swagger file only (PR)
         self.assertSetEqual(
             get_swagger_files_in_git_object(get_pr('Azure/azure-rest-api-specs', 1422)),
             {Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json')}
+        )
+        # Basic test, one Readme file only (PR)
+        self.assertSetEqual(
+            get_swagger_files_in_git_object(get_pr('lmazuel/azure-rest-api-specs', 12)),
+            {Path('specification/cdn/resource-manager/readme.md')}
         )
         # Basic test, one Swagger file only (commit)
         self.assertSetEqual(
@@ -128,101 +112,6 @@ class TestSwaggerToSDK(unittest.TestCase):
             set()
         )
 
-    @unittest.mock.patch('subprocess.check_output')
-    def test_generate_code(self, mocked_check_output):
-        SwaggerToSdkLegacy.generate_code(
-            'Java',
-            Path('/a/b/c/swagger.json'),
-            Path('/'),
-            {},
-            {},
-            "node myautorest"
-        )
-        call_args = mocked_check_output.call_args
-        expected = [
-            'node',
-            'myautorest',
-            '--version=latest',
-            '-i',
-            str(Path('/a/b/c/swagger.json')),
-            '-o',
-            str(Path('/')),
-            '-CodeGenerator',
-            'Azure.Java'
-        ]
-        self.assertListEqual(call_args[0][0], expected)
-        self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
-
-        SwaggerToSdkNewCLI.generate_code(
-            Path('/a/b/c/swagger.md'),
-            {"autorest_markdown_cli": True},
-            {"autorest_options":{
-                "java": '',
-                'azure-arm': True,
-                "description": "I am a spaced description",
-                'input-file': [Path('/a/b/c/swagger.json')]}
-            },
-            Path('/'),
-            "node myautorest"
-        )
-        call_args = mocked_check_output.call_args
-        expected = [
-            'node',
-            'myautorest',
-            str(Path('/a/b/c/swagger.md')),
-            '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
-            '--azure-arm=True',
-            "--description='I am a spaced description'",
-            '--input-file={}'.format(str(Path('/a/b/c/swagger.json'))),
-            '--java',
-        ]
-        self.assertListEqual(call_args[0][0], expected)
-        self.assertEqual(call_args[1]['cwd'], str(Path('/a/b/c/')))
-
-        SwaggerToSdkNewCLI.generate_code(
-            '/a/b/c/swagger.md',
-            {},
-            {},
-            Path('/'),            
-            autorest_bin = "node autorest"
-        )
-        call_args = mocked_check_output.call_args
-        expected = [
-            'node',
-            'autorest',
-            '/a/b/c/swagger.md',
-            '--output-folder={}{}'.format(str(Path('/')),str(Path('/'))),
-        ]
-        self.assertListEqual(call_args[0][0], expected)
-
-
-    @unittest.mock.patch('subprocess.check_output')
-    def test_generate_code_no_autorest_in_path(self, mocked_check_output):
-        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm, unittest.mock.patch('shutil.which') as which:
-            which.return_value = None
-            SwaggerToSdkNewCLI.generate_code(
-                Path('/a/b/c/swagger.json'),
-                {},
-                {},
-                Path(temp_dir),                
-            )
-        the_exception = cm.exception
-        print(str(the_exception))
-        print(str(shutil.which("autorest")))
-        self.assertTrue("No autorest found in PATH and no autorest path option used" in str(the_exception))
-
-    @unittest.mock.patch('subprocess.check_output')
-    def test_generate_code_fail(self, mocked_check_output):
-        with tempfile.TemporaryDirectory() as temp_dir, self.assertRaises(ValueError) as cm:
-            SwaggerToSdkNewCLI.generate_code(
-                Path('/a/b/c/swagger.json'),
-                {},
-                {},
-                Path(temp_dir),               
-                "node autorest",
-            )
-        the_exception = cm.exception
-        self.assertTrue("no files were generated" in str(the_exception))
 
     def test_do_commit(self):
         finished = False # Authorize PermissionError on cleanup
@@ -290,59 +179,9 @@ class TestSwaggerToSDK(unittest.TestCase):
         pr_obj = get_pr_from_travis_commit_sha(GH_TOKEN)
         self.assertIsNone(pr_obj)
 
-    def test_legacy_build_autorest_options(self):
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value"}})
-        self.assertEqual(line, "-A value -B value -CodeGenerator Azure.Python")
-
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
-        self.assertEqual(line, "-A newvalue -CodeGenerator Azure.Python")
-
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {})
-        self.assertEqual(line, "-CodeGenerator NodeJS")
-
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"CodeGenerator": "NodeJS"}}, {"autorest_options": {"CodeGenerator": "CSharp"}})
-        self.assertEqual(line, "-CodeGenerator CSharp")
-
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {}, {})
-        self.assertEqual(line, "-CodeGenerator Azure.Python")
-
-        line = SwaggerToSdkLegacy.build_autorest_options("Python", {"autorest_options": {"A": 12, "B": True}}, {})
-        self.assertEqual(line, "-A 12 -B True -CodeGenerator Azure.Python")
-
-    def test_build_autorest_options(self):
-        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value value"}})
-        self.assertListEqual(line, ["--a=value", "--b='value value'"])
-
-        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": ["value1", "value2"]}})
-        self.assertListEqual(line, ["--a=value", "--b=value1", "--b=value2"])
-
-        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"A": "newvalue"}})
-        self.assertListEqual(line, ["--a=newvalue"])
-
-        line = SwaggerToSdkNewCLI.build_autorest_options({}, {})
-        self.assertListEqual(line, [])
-
-        line = SwaggerToSdkNewCLI.build_autorest_options({"autorest_options": {"A": 12, "B": True, "C": ''}}, {})
-        self.assertListEqual(line, ["--a=12", "--b=True", "--c"])
-
-    def test_merge_options(self):
-        result = merge_options({}, {}, 'key')
-        self.assertFalse(result)
-
-        result = merge_options({'a': [1, 2, 3]}, {'a': [3, 4, 5]}, 'a')
-        self.assertSetEqual(set(result), {1, 2, 3, 4, 5})
-
-        result = merge_options({'a': [1, 2, 3]}, {}, 'a')
-        self.assertSetEqual(set(result), {1, 2, 3})
-
-        result = merge_options({}, {'a': [3, 4, 5]}, 'a')
-        self.assertSetEqual(set(result), {3, 4, 5})
-
-        result = merge_options({'a': {1: 2, 2: 3}}, {'a': {3: 4, 2: 3}}, 'a')
-        self.assertDictEqual(result, {1: 2, 2: 3, 3: 4})
 
     def test_get_input_path(self):
-        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
+        main, opt = SwaggerToSdkNewCLI.get_input_paths(
             {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
@@ -351,7 +190,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         self.assertEqual(None, main)
         self.assertEqual([Path('a'), Path('b')], opt)
 
-        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
+        main, opt = SwaggerToSdkNewCLI.get_input_paths(
             {},
             {"autorest_options": {
                 "input-file": ['a', 'b']
@@ -359,14 +198,6 @@ class TestSwaggerToSDK(unittest.TestCase):
         )
         self.assertEqual(Path('c'), main)
         self.assertEqual([Path('a'), Path('b')], opt)
-
-        main, opt, comp = SwaggerToSdkNewCLI.get_input_paths(
-            {},
-            {"composite": "d"}
-        )
-        self.assertEqual(None, main)
-        self.assertEqual(Path('d'), comp)
-        self.assertEqual([], opt)
 
     def test_get_user(self):
         user = user_from_token(GH_TOKEN)
@@ -544,6 +375,43 @@ class TestSwaggerToSDK(unittest.TestCase):
             self.assertTrue(Path(output, 'generated.txt').exists())
             self.assertFalse(Path(output, 'erase.txt').exists())
 
+    @unittest.mock.patch('subprocess.check_output')
+    def test_extract_conf_from_readmes(self, mocked_check_output):
+        def side_effect(*args, **kwargs):
+            output_param = args[0][-1]
+            output_path = Path(output_param[len("--output-folder="):])
+            Path(output_path, "configuration.json").write_text(
+                json.dumps({
+                    "swagger-to-sdk": [
+                    {},
+                    {
+                        "repo": "azure-sdk-for-python"
+                    }
+                    ],
+                })
+            )
+        mocked_check_output.side_effect = side_effect
+
+        swagger_files_in_pr = {Path("readme.md")}
+        sdk_git_id = get_full_sdk_id(GH_TOKEN, "azure-sdk-for-python")
+        config = {}
+        extract_conf_from_readmes(GH_TOKEN, swagger_files_in_pr, Path(CWD, "files"), sdk_git_id, config)
+
+        assert "projects" in config
+        assert "readme.md" in config["projects"]
+        assert config["projects"]["readme.md"]["markdown"] == "readme.md"
+        print(config)
+
+        config = {
+            "projects": {
+                "dns": {
+                    "markdown": "myreadmd.md"
+                }
+            }
+        }
+        extract_conf_from_readmes(GH_TOKEN, swagger_files_in_pr, Path(CWD, "files"), sdk_git_id, config)
+
+        assert len(config["projects"]) == 2
 
 if __name__ == '__main__':
     unittest.main()

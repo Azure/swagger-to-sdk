@@ -25,11 +25,10 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                 continue
             local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_folder)
 
-            markdown_relative_path, optional_relative_paths, composite_relative_path = get_input_paths(global_conf, local_conf)
+            markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
 
             _LOGGER.info(f"Markdown input: {markdown_relative_path}")
             _LOGGER.info(f"Optional inputs: {optional_relative_paths}")
-            _LOGGER.info(f"Composite input: {composite_relative_path}")
 
             absolute_markdown_path = None
             if markdown_relative_path:
@@ -40,12 +39,6 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
                     for input_path
                     in optional_relative_paths
                 ]
-            if composite_relative_path:
-                composite_full_path = Path(restapi_git_folder, composite_relative_path).resolve()
-                md_content_from_composite = convert_composite_to_markdown(composite_full_path)
-                absolute_markdown_path = Path(temp_dir, "composite.md").resolve()
-                with open(absolute_markdown_path, "w", encoding="utf-8") as tmp_fd:
-                    tmp_fd.write(md_content_from_composite)
 
             build_project(
                 temp_dir,

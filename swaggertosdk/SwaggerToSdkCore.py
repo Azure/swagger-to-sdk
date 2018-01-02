@@ -5,6 +5,7 @@ import re
 import shutil
 import stat
 import subprocess
+import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 
@@ -12,6 +13,7 @@ from git import Repo
 from github import Github, GithubException
 
 from .markdown_support import extract_yaml
+from .autorest_tools import autorest_latest_version_finder, autorest_bootstrap_version_finder, autorest_swagger_to_sdk_conf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,37 +34,6 @@ def build_file_content():
         'autorest': autorest_version,
         'autorest_bootstrap': autorest_bootstrap_version,
     }
-
-
-def autorest_latest_version_finder():
-    autorest_bin = shutil.which("autorest")
-    cmd_line = "{} --version --json".format(autorest_bin)
-    return json.loads(subprocess.check_output(cmd_line.split()).decode().strip())
-
-def autorest_bootstrap_version_finder():
-    try:
-        npm_bin = shutil.which('npm')
-        cmd_line = ("{} --json ls autorest -g".format(npm_bin)).split()
-        return json.loads(subprocess.check_output(cmd_line).decode().strip())
-    except Exception:
-        return {}
-
-
-def merge_options(global_conf, local_conf, key):
-    """Merge the conf using override: local conf is prioritary over global"""
-    global_keyed_conf = global_conf.get(key) # Could be None
-    local_keyed_conf = local_conf.get(key) # Could be None
-
-    if global_keyed_conf is None or local_keyed_conf is None:
-        return global_keyed_conf or local_keyed_conf
-
-    if isinstance(global_keyed_conf, list):
-        options = set(global_keyed_conf)
-    else:
-        options = dict(global_keyed_conf)
-
-    options.update(local_keyed_conf)
-    return options
 
 
 def checkout_and_create_branch(repo, name):
@@ -106,46 +77,6 @@ def find_markdown_files(base_dir=Path('.')):
     :rtype: pathlib.Path"""
     return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('**/*.md')]
 
-def get_composite_file_as_json(composite_filepath):
-    """Get the composite file as JSON"""
-    with composite_filepath.open() as composite_fd:
-        try:
-            return json.load(composite_fd)
-        except Exception:
-            _LOGGER.critical("Invalid JSON file: %s", composite_filepath)
-            raise
-
-def get_documents_in_composite_file(composite_filepath, base_dir=Path('.')):
-    """Get the documents inside this composite file, relative to the repo root.
-
-    :params str composite_filepath: The filepath, relative to the repo root or absolute.
-    :returns: An iterable of Swagger specs in this composite file
-    :rtype: list<str>"""
-    _LOGGER.info("Parsing composite file %s", composite_filepath)
-    def pathconvert(doc_path):
-        if doc_path.startswith('https'):
-            return doc_path.split('/master/')[1]
-        else:
-            return composite_filepath.parent / doc_path
-    composite_json = get_composite_file_as_json(base_dir / composite_filepath)
-    return [Path(pathconvert(d)) for d in composite_json['documents']]
-
-def find_composite_files(base_dir=Path('.')):
-    """Find composite file.
-
-    The path are relative to base_dir.
-    :rtype: pathlib.Path"""
-    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('*/composite*.json')]
-
-def swagger_index_from_composite(base_dir=Path('.')):
-    """Build a reversed index of the composite files in thie repository.
-    :rtype: dict"""
-    return {
-        doc: composite_file
-        for composite_file in find_composite_files(base_dir)
-        for doc in get_documents_in_composite_file(composite_file, base_dir)
-    }
-
 def swagger_index_from_markdown(base_dir=Path('.')):
     """Build a reversed index of the markdown files in this repository.
     :rtype: dict"""
@@ -162,13 +93,13 @@ def get_swagger_files_in_git_object(git_object):
     except AttributeError:
         files_list = git_object.files # Try as a commit object
     return {Path(file.filename) for file in files_list
-            if re.match(r"specification/.*\.json", file.filename, re.I)}
+            if re.match(r"specification/.*\.json", file.filename, re.I) or re.match(r"specification/.*/readme.md", file.filename, re.I)
+           }
 
 def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
-    """List project files in the PR, a project file being a Composite/Markdown file or a Swagger file."""
+    """List project files in the PR, a project file being a Markdown file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_git_object(pr_object)
-    swagger_index = swagger_index_from_composite(base_dir)
-    swagger_index.update(swagger_index_from_markdown(base_dir))
+    swagger_index = swagger_index_from_markdown(base_dir)
     swagger_files_in_pr |= {swagger_index[s]
                             for s in swagger_files_in_pr
                             if s in swagger_index}
@@ -233,6 +164,21 @@ def get_pr_object_from_travis(gh_token=None):
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
     return github_repo.get_pull(int(pr_number))
+
+
+def get_commit_object_from_travis(gh_token=None):
+    """If Travis, return the Github object representing the current commit.
+       If result is None, is not Travis.
+       The GH token is optional if the repo is public.
+    """
+    if not IS_TRAVIS:
+        return
+    _LOGGER.warning("Should improved using TRAVIS_COMMIT_RANGE: {}".format(os.environ['TRAVIS_COMMIT_RANGE']))
+    commit_sha = os.environ['TRAVIS_COMMIT'] 
+    github_con = Github(gh_token)
+    github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
+
+    return github_repo.get_commit(commit_sha)
 
 
 def get_pr_from_travis_commit_sha(gh_token=None):
@@ -429,3 +375,22 @@ def read_config(sdk_git_folder, config_file):
     config_path = os.path.join(sdk_git_folder, config_file)
     with open(config_path, 'r') as config_fd:
         return json.loads(config_fd.read())
+
+
+def extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder, sdk_git_id, config):
+    readme_files_in_pr = {readme for readme in swagger_files_in_pr if readme.name.lower() == "readme.md"}
+    with tempfile.TemporaryDirectory() as temp_dir:
+        for readme_file in readme_files_in_pr:
+            abs_readme_path = Path(restapi_git_folder, readme_file)
+            readme_as_conf = autorest_swagger_to_sdk_conf(abs_readme_path, temp_dir)
+            for swagger_to_sdk_conf in readme_as_conf:
+                repo = swagger_to_sdk_conf.get("repo", "")
+                if gh_token:
+                    repo = get_full_sdk_id(gh_token, repo)
+                if repo.split("/")[-1] == sdk_git_id.split("/")[-1]:
+                    _LOGGER.info("This Readme contains a swagger-to-sdk section for repo {}".format(repo))
+                    config.setdefault("projects",{})[str(readme_file)] = {
+                        "markdown": str(readme_file),
+                        "autorest_options": swagger_to_sdk_conf.get("autorest_options", {})
+                    }
+    

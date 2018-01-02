@@ -20,7 +20,13 @@ from .SwaggerToSdkCore import (
     get_swagger_hexsha,
     do_commit,
     do_pr,
-    add_comment_to_initial_pr
+    add_comment_to_initial_pr,
+    get_swagger_project_files_in_pr,
+    get_commit_object_from_travis,
+    extract_conf_from_readmes
+)
+from .autorest_tools import (
+    autorest_swagger_to_sdk_conf
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,16 +62,22 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
 
         global_conf = config["meta"]
         conf_version = global_conf["version"]
-        initial_pr = get_initial_pr(gh_token)
+        initial_git_trigger = get_initial_pr(gh_token)
+        if not initial_git_trigger:
+            initial_git_trigger = get_commit_object_from_travis(gh_token)
+
+        swagger_files_in_pr = get_swagger_project_files_in_pr(initial_git_trigger, restapi_git_folder) if initial_git_trigger else set()
+        _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
+
+        # Look for configuration in Readme
+        extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
 
         if conf_version == "0.1.0":
-            from . import SwaggerToSdkLegacy
-            SwaggerToSdkLegacy.build_libraries(config, project_pattern, restapi_git_folder,
-                                               sdk_repo, temp_dir, initial_pr, autorest_bin)
+            raise ValueError("Format 0.1.0 is not supported anymore")
         elif conf_version == "0.2.0":
             from . import SwaggerToSdkNewCLI
             SwaggerToSdkNewCLI.build_libraries(config, project_pattern, restapi_git_folder,
-                                               sdk_repo, temp_dir, initial_pr, autorest_bin)
+                                               sdk_repo, temp_dir, swagger_files_in_pr, autorest_bin)
         else:
             raise ValueError(f"Unsupported version {conf_version}")
 
