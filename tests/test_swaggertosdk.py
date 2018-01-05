@@ -67,7 +67,7 @@ class TestSwaggerToSDK(unittest.TestCase):
         print(solved_conf)
         self.assertEquals(len(solved_conf), 2)
         self.assertEquals(solved_conf["test"], "basicvalue")
-        self.assertIn(solved_conf["retest"], ["/tmp", "C:\\tmp"]) # Cross platform tests
+        self.assertIn(solved_conf["retest"], ["/tmp", "C:\\tmp", "D:\\tmp"]) # Cross platform tests
 
     def test_get_swagger_project_files_in_pr(self):
         swaggers = get_swagger_project_files_in_pr(get_pr('Azure/azure-rest-api-specs', 1422), base_dir=Path(CWD))
