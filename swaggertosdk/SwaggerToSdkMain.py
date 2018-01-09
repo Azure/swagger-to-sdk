@@ -5,6 +5,7 @@ import tempfile
 from git import Repo, GitCommandError
 
 from .SwaggerToSdkCore import (
+    IS_TRAVIS,
     CONFIG_FILE,
     DEFAULT_BRANCH_NAME,
     DEFAULT_COMMIT_MESSAGE,
@@ -23,7 +24,8 @@ from .SwaggerToSdkCore import (
     add_comment_to_initial_pr,
     get_swagger_project_files_in_pr,
     get_commit_object_from_travis,
-    extract_conf_from_readmes
+    extract_conf_from_readmes,
+    get_input_paths,
 )
 from .autorest_tools import (
     autorest_swagger_to_sdk_conf
@@ -72,12 +74,28 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
         # Look for configuration in Readme
         extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
 
+        def skip_callback(project, local_conf):
+            if IS_TRAVIS and not swagger_files_in_pr:
+                return True # Travis with no files found, always skip
+
+            if project_pattern and not any(project.startswith(p) for p in project_pattern):
+                return True
+
+            markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
+
+            if swagger_files_in_pr and not (
+                    markdown_relative_path in swagger_files_in_pr or
+                    any(input_file in swagger_files_in_pr for input_file in optional_relative_paths)):
+                _LOGGER.info(f"In project {project} no files involved in this PR")
+                return True
+            return False
+
         if conf_version == "0.1.0":
             raise ValueError("Format 0.1.0 is not supported anymore")
         elif conf_version == "0.2.0":
             from . import SwaggerToSdkNewCLI
-            SwaggerToSdkNewCLI.build_libraries(config, project_pattern, restapi_git_folder,
-                                               sdk_repo, temp_dir, swagger_files_in_pr, autorest_bin)
+            SwaggerToSdkNewCLI.build_libraries(config, skip_callback, restapi_git_folder,
+                                               sdk_repo, temp_dir, autorest_bin)
         else:
             raise ValueError(f"Unsupported version {conf_version}")
 
@@ -121,7 +139,7 @@ def main():
                         help='Force commit message. {hexsha} will be the current REST SHA1 [default: %(default)s]')
     parser.add_argument('--project', '-p',
                         dest='project', action='append',
-                        help='Select a specific project. Do all by default. You can use a substring for several projects.')
+                        help='Select a specific project. Do all by default in CLI mode, nothing in Travis mode. You can use a substring for several projects.')
     parser.add_argument('--base-branch', '-o',
                         dest='base_branch', default='master',
                         help='The base branch from where create the new branch and where to do the final PR. [default: %(default)s]')

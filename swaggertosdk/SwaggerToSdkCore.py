@@ -393,4 +393,40 @@ def extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder,
                         "markdown": str(readme_file),
                         "autorest_options": swagger_to_sdk_conf.get("autorest_options", {})
                     }
-    
+
+def get_input_paths(global_conf, local_conf):
+    """Returns a 2-tuple:
+    - Markdown Path or None
+    - Input-file Paths or empty list
+    """
+    del global_conf # Unused
+
+    relative_markdown_path = None # Markdown is optional
+    input_files = [] # Input file could be empty
+    if "markdown" in local_conf:
+        relative_markdown_path = Path(local_conf['markdown'])
+    input_files = local_conf.get('autorest_options', {}).get('input-file', [])
+    if input_files and not isinstance(input_files, list):
+        input_files = [input_files]
+    input_files = [Path(input_file) for input_file in input_files]
+    if not relative_markdown_path and not input_files:
+        raise ValueError("No input file found")
+    return (relative_markdown_path, input_files)
+
+
+def solve_relative_path(autorest_options, sdk_root):
+    """Solve relative path in conf.
+
+    If a key is prefixed by "sdkrel:", it's solved against SDK root.
+    """
+    SDKRELKEY = "sdkrel:"
+    solved_autorest_options = {}
+    for key, value in autorest_options.items():
+        if key.startswith(SDKRELKEY):
+            _LOGGER.debug("Found a sdkrel pair: %s/%s", key, value)
+            subkey = key[len(SDKRELKEY):]
+            solved_value = Path(sdk_root, value).resolve()
+            solved_autorest_options[subkey] = str(solved_value)
+        else:
+            solved_autorest_options[key] = value
+    return solved_autorest_options
