@@ -9,7 +9,7 @@ from swaggertosdk.SwaggerToSdkCore import *
 
 _LOGGER = logging.getLogger(__name__)
 
-def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autorest_bin=None):
+def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folder, autorest_bin=None):
 
     sdk_folder = Path(sdk_folder).expanduser()
     config = read_config(sdk_folder, config_path)
@@ -18,9 +18,16 @@ def generate(config_path, sdk_folder, project_pattern, restapi_git_folder, autor
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_folder)
     restapi_git_folder = Path(restapi_git_folder).expanduser()
 
+    # Look for configuration in Readme
+    if readme:
+        swagger_files_in_pr = [Path(readme)]
+    else:
+        swagger_files_in_pr =  list(restapi_git_folder.glob('specification/**/readme.md'))
+    extract_conf_from_readmes(None, swagger_files_in_pr, restapi_git_folder, "azure-sdk-for-go", config)
+
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():
-            if project_pattern and not any(project.startswith(p) for p in project_pattern):
+            if project_pattern and not any(p in project for p in project_pattern):
                 _LOGGER.info("Skip project %s", project)
                 continue
             local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_folder)
@@ -63,6 +70,9 @@ def generate_main():
     parser.add_argument('--project', '-p',
                         dest='project', action='append',
                         help='Select a specific project. Do all by default. You can use a substring for several projects.')
+    parser.add_argument('--readme', '-m',
+                        dest='readme',
+                        help='Select a specific readme. Must be a path')
     parser.add_argument('--config', '-c',
                         dest='config_path', default=CONFIG_FILE,
                         help='The JSON configuration format path [default: %(default)s]')
@@ -88,6 +98,7 @@ def generate_main():
     generate(args.config_path,
              args.sdk_folder,
              args.project,
+             args.readme,
              args.restapi_git_folder,
              args.autorest_bin)
 
