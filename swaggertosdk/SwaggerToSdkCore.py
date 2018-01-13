@@ -391,7 +391,8 @@ def extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder,
                     _LOGGER.info("This Readme contains a swagger-to-sdk section for repo {}".format(repo))
                     config.setdefault("projects",{})[str(readme_file)] = {
                         "markdown": str(readme_file),
-                        "autorest_options": swagger_to_sdk_conf.get("autorest_options", {})
+                        "autorest_options": swagger_to_sdk_conf.get("autorest_options", {}),
+                        "after_scripts": swagger_to_sdk_conf.get("after_scripts", []),
                     }
 
 def get_input_paths(global_conf, local_conf):
