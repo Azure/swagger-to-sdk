@@ -50,7 +50,7 @@ def test_merge_options():
 
 def test_generate_code(monkeypatch):
     mocked_check_output = MagicMock()
-    monkeypatch.setattr('subprocess.check_output', mocked_check_output)
+    monkeypatch.setattr('swaggertosdk.autorest_tools.execute_simple_command', mocked_check_output)
 
     generate_code(
         Path('/a/b/c/swagger.md'),
@@ -97,7 +97,7 @@ def test_generate_code(monkeypatch):
 
 def test_generate_code_no_autorest_in_path(monkeypatch):
     mocked_check_output = MagicMock()
-    monkeypatch.setattr('subprocess.check_output', mocked_check_output)
+    monkeypatch.setattr('swaggertosdk.autorest_tools.execute_simple_command', mocked_check_output)
     
     with tempfile.TemporaryDirectory() as temp_dir, pytest.raises(ValueError) as cm, patch('shutil.which') as which:
         which.return_value = None
@@ -113,7 +113,7 @@ def test_generate_code_no_autorest_in_path(monkeypatch):
 
 def test_generate_code_fail(monkeypatch):
     mocked_check_output = MagicMock()
-    monkeypatch.setattr('subprocess.check_output', mocked_check_output)
+    monkeypatch.setattr('swaggertosdk.autorest_tools.execute_simple_command', mocked_check_output)
 
     with tempfile.TemporaryDirectory() as temp_dir, pytest.raises(ValueError) as cm:
         generate_code(
@@ -129,7 +129,7 @@ def test_generate_code_fail(monkeypatch):
 
 def test_autorest_swagger_to_sdk_conf(monkeypatch):
     mocked_check_output = MagicMock()
-    monkeypatch.setattr('subprocess.check_output', mocked_check_output)
+    monkeypatch.setattr('swaggertosdk.autorest_tools.execute_simple_command', mocked_check_output)
 
     readme_path = Path(CWD, "files", "readme.md")
     temp_dir = Path(CWD, "files")

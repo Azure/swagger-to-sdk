@@ -375,8 +375,8 @@ class TestSwaggerToSDK(unittest.TestCase):
             self.assertTrue(Path(output, 'generated.txt').exists())
             self.assertFalse(Path(output, 'erase.txt').exists())
 
-    @unittest.mock.patch('subprocess.check_output')
-    def test_extract_conf_from_readmes(self, mocked_check_output):
+    @unittest.mock.patch('swaggertosdk.autorest_tools.execute_simple_command')
+    def test_extract_conf_from_readmes(self, mocked_execute_simple_command):
         def side_effect(*args, **kwargs):
             output_param = args[0][-1]
             output_path = Path(output_param[len("--output-folder="):])
@@ -390,7 +390,7 @@ class TestSwaggerToSDK(unittest.TestCase):
                     ],
                 })
             )
-        mocked_check_output.side_effect = side_effect
+        mocked_execute_simple_command.side_effect = side_effect
 
         swagger_files_in_pr = {Path("readme.md")}
         sdk_git_id = get_full_sdk_id(GH_TOKEN, "azure-sdk-for-python")

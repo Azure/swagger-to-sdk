@@ -114,17 +114,22 @@ def generate_code(input_file, global_conf, local_conf, output_dir=None, autorest
 
 def execute_simple_command(cmd_line, cwd=None, shell=False):
     try:
-        result = subprocess.check_output(cmd_line,
-                                         stderr=subprocess.STDOUT,
-                                         universal_newlines=True,
-                                         cwd=cwd,
-                                         shell=shell)
-    except subprocess.CalledProcessError as err:
-        _LOGGER.error(err)
-        _LOGGER.error(err.output)
-        raise
+        process = subprocess.Popen(cmd_line,
+                                   stderr=subprocess.STDOUT,
+                                   stdout=subprocess.PIPE,
+                                   universal_newlines=True,
+                                   cwd=cwd,
+                                   shell=shell)
+        for line in process.stdout:
+            _LOGGER.info(line.rstrip())
+        process.wait()
+        if process.returncode:
+            raise subprocess.CalledProcessError(
+                process.returncode,
+                cmd_line
+            )
     except Exception as err:
         _LOGGER.error(err)
         raise
     else:
-        _LOGGER.info(result)
+        _LOGGER.info("Return code: %s", process.returncode)
