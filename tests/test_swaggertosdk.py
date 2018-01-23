@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 
+from git import GitCommandError
+
 # Fake Travis before importing the Script
 os.environ['TRAVIS'] = 'true'
 
@@ -112,6 +114,77 @@ class TestSwaggerToSDK(unittest.TestCase):
             set()
         )
 
+
+    def test_manage_git_folder(self):
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir, \
+                     manage_git_folder(GH_TOKEN, temp_dir, "lmazuel/TestingRepo") as rest_repo:
+
+                self.assertTrue((Path(rest_repo) / Path("README.md")).exists())
+
+                finished = True
+        except (PermissionError, FileNotFoundError):
+            if not finished:
+                raise
+
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir, \
+                     manage_git_folder(GH_TOKEN, temp_dir, "lmazuel/TestingRepo@lmazuel-patch-1") as rest_repo:
+
+                self.assertTrue((Path(rest_repo) / Path("README.md")).exists())
+                self.assertTrue(Repo(rest_repo).active_branch, "lmazuel-patch-1")
+
+                finished = True
+        except (PermissionError, FileNotFoundError):
+            if not finished:
+                raise
+
+    def test_clone_path(self):
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                clone_to_path(GH_TOKEN, temp_dir, "lmazuel/TestingRepo")
+                self.assertTrue((Path(temp_dir) / Path("README.md")).exists())
+
+                finished = True
+        except PermissionError:
+            if not finished:
+                raise
+
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                clone_to_path(GH_TOKEN, temp_dir, "https://github.com/lmazuel/TestingRepo")
+                self.assertTrue((Path(temp_dir) / Path("README.md")).exists())
+
+                finished = True
+        except PermissionError:
+            if not finished:
+                raise
+
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                clone_to_path(GH_TOKEN, temp_dir, "lmazuel/TestingRepo", "lmazuel-patch-1")
+                self.assertTrue((Path(temp_dir) / Path("README.md")).exists())
+
+                finished = True
+        except PermissionError:
+            if not finished:
+                raise
+
+        finished = False # Authorize PermissionError on cleanup
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with self.assertRaises(GitCommandError):
+                    clone_to_path(GH_TOKEN, temp_dir, "lmazuel/TestingRepo", "fakebranch")
+
+                finished = True
+        except (PermissionError, FileNotFoundError):
+            if not finished:
+                raise
 
     def test_do_commit(self):
         finished = False # Authorize PermissionError on cleanup

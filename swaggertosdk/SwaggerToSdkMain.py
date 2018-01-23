@@ -3,6 +3,8 @@ import os
 import logging
 import tempfile
 from git import Repo, GitCommandError
+from pathlib import Path
+import sys
 
 from .SwaggerToSdkCore import (
     IS_TRAVIS,
@@ -12,7 +14,7 @@ from .SwaggerToSdkCore import (
     DEFAULT_TRAVIS_BRANCH_NAME,
     DEFAULT_TRAVIS_PR_BRANCH_NAME,
     get_full_sdk_id,
-    manage_sdk_folder,
+    manage_git_folder,
     compute_branch_name,
     configure_user,
     sync_fork,
@@ -22,6 +24,7 @@ from .SwaggerToSdkCore import (
     do_commit,
     do_pr,
     add_comment_to_initial_pr,
+    compute_pr_comment_with_sdk_pr,
     get_swagger_project_files_in_pr,
     get_commit_object_from_travis,
     extract_conf_from_readmes,
@@ -34,16 +37,17 @@ from .autorest_tools import (
 _LOGGER = logging.getLogger(__name__)
 
 
-def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
+def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
                  sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
                  autorest_bin=None):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
 
     with tempfile.TemporaryDirectory() as temp_dir, \
-            manage_sdk_folder(gh_token, temp_dir, sdk_git_id) as sdk_folder:
+            manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), restapi_git_id) as restapi_git_folder, \
+            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_git_id) as sdk_folder:
 
-        sdk_repo = Repo(sdk_folder)
+        sdk_repo = Repo(str(sdk_folder))
         if gh_token:
             branch_name = compute_branch_name(branch_name, gh_token)
 
@@ -104,7 +108,10 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
                 sdk_repo.git.push('origin', branch_name, set_upstream=True)
                 if pr_repo_id:
-                    do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name)
+                    pr_body = "Generated from PR: {}".format(initial_pr.html_url)
+                    github_pr = do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name, pr_body)
+                    comment = compute_pr_comment_with_sdk_pr(github_pr.html_url, sdk_git_id, branch_name)
+                    add_comment_to_initial_pr(gh_token, comment)
             else:
                 add_comment_to_initial_pr(gh_token, "No modification for {}".format(sdk_git_id))
         else:
@@ -113,8 +120,29 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_folder,
     _LOGGER.info("Build SDK finished and cleaned")
 
 
-def main():
+def main(argv):
     """Main method"""
+
+    if 'GH_TOKEN' not in os.environ:
+        gh_token = None
+    else:
+        gh_token = os.environ['GH_TOKEN']
+
+    if "--rest-server" in argv:
+        from .restapi import app
+        log_level = logging.WARNING
+        if "-v" in argv or "--verbose" in argv:
+            log_level = logging.INFO
+        if "--debug" in argv:
+            log_level = logging.DEBUG
+
+        main_logger = logging.getLogger()
+        logging.basicConfig()
+        main_logger.setLevel(log_level)
+
+        app.run(debug=log_level == logging.DEBUG, host='0.0.0.0')
+        sys.exit(0)
+
     epilog = "\n".join([
         'The script activates this additional behaviour if Travis is detected:',
         ' --branch is setted by default to "{}" if triggered by a PR, "{}" otherwise'.format(
@@ -165,12 +193,7 @@ def main():
                          'Otherwise, you can use the syntax username/repoid')
 
     args = parser.parse_args()
-
-    if 'GH_TOKEN' not in os.environ:
-        gh_token = None
-    else:
-        gh_token = os.environ['GH_TOKEN']
-
+    
     main_logger = logging.getLogger()
     if args.verbose or args.debug:
         logging.basicConfig()

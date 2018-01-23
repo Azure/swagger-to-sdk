@@ -41,7 +41,7 @@ ENV LC_ALL en_US.UTF-8
 COPY setup.py /tmp
 COPY swaggertosdk /tmp/swaggertosdk/
 WORKDIR /tmp
-RUN pip3.6 install .
+RUN pip3.6 install .[rest]
 
 WORKDIR /git-restapi
 ENTRYPOINT ["python3.6", "-m", "swaggertosdk"]

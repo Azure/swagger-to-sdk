@@ -1,13 +1,14 @@
-import os
-import logging
+from contextlib import contextmanager
 import json
+import logging
+import os
 import re
 import shutil
 import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from contextlib import contextmanager
+from urllib.parse import urlparse
 
 from git import Repo
 from github import Github, GithubException, UnknownObjectException
@@ -116,9 +117,9 @@ def do_commit(repo, message_template, branch_name, hexsha):
 
     checkout_and_create_branch(repo, branch_name)
     msg = message_template.format(hexsha=hexsha)
-    repo.index.commit(msg)
+    commit = repo.index.commit(msg)
     _LOGGER.info("Commit done: %s", msg)
-    return True
+    return commit.hexsha
 
 
 def sync_fork(gh_token, github_repo_id, repo):
@@ -242,7 +243,7 @@ def configure_user(gh_token, repo):
        git config --global user.name "Your Name"
     """
     user = user_from_token(gh_token)
-    repo.git.config('user.email', user.email or 'autorestci@microsoft.com')
+    repo.git.config('user.email', user.email or 'aspysdk2@microsoft.com')
     repo.git.config('user.name', user.name or 'SwaggerToSDK Automation')
 
 
@@ -258,7 +259,7 @@ def compute_branch_name(branch_name, gh_token=None):
         return DEFAULT_TRAVIS_BRANCH_NAME.format(branch=os.environ['TRAVIS_BRANCH'])
     return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_object.number)
 
-def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch):
+def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch, pr_body=""):
     "Do the PR"
     if not gh_token:
         _LOGGER.info('Skipping the PR, no token found')
@@ -276,31 +277,30 @@ def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch)
         head_name = "{}:{}".format(sdk_git_owner, branch_name)
     else:
         head_name = branch_name
+        sdk_git_repo = github_con.get_repo(sdk_git_id)
+        sdk_git_owner = sdk_git_repo.owner.login
 
-    body = ''
-    rest_api_pr = get_initial_pr(gh_token)
-    if rest_api_pr:
-        body += "Generated from RestAPI PR: {}".format(rest_api_pr.html_url)
     try:
         github_pr = sdk_pr_target_repo.create_pull(
             title='Automatic PR from {}'.format(branch_name),
-            body=body,
+            body=pr_body,
             head=head_name,
             base=base_branch
         )
     except GithubException as err:
-        if err.status == 422 and err.data['errors'][0]['message'].startswith('A pull request already exists'):
-            _LOGGER.info('PR already exists, it was a commit on an open PR')
-            return
+        if err.status == 422 and err.data['errors'][0].get('message', '').startswith('A pull request already exists'):
+            matching_pulls = sdk_pr_target_repo.get_pulls(base=base_branch, head=sdk_git_owner+":"+head_name)
+            matching_pull = matching_pulls[0]
+            _LOGGER.info('PR already exists: '+matching_pull.html_url)
+            return matching_pull
         raise
     _LOGGER.info("Made PR %s", github_pr.html_url)
-    comment = compute_pr_comment_with_sdk_pr(github_pr.html_url, sdk_git_id, branch_name)
-    add_comment_to_initial_pr(gh_token, comment)
+    return github_pr
 
 
 def get_swagger_hexsha(restapi_git_folder):
     """Get the SHA1 of the current repo"""
-    repo = Repo(restapi_git_folder)
+    repo = Repo(str(restapi_git_folder))
     if repo.bare:
         not_git_hexsha = "notgitrepo"
         _LOGGER.warning("Not a git repo, SHA1 used will be: %s", not_git_hexsha)
@@ -330,9 +330,16 @@ def add_comment_to_initial_pr(gh_token, comment):
     return True
 
 
-def clone_to_path(gh_token, temp_dir, sdk_git_id):
-    """Clone the given repo_id to the 'sdk' folder in given temp_dir"""
+def clone_to_path(gh_token, temp_dir, sdk_git_id, branch=None):
+    """Clone the given repo_id to the temp_dir folder.
+    
+    :param str branch: If specified, switch to this branch. Branch must exist.
+    """
     _LOGGER.info("Clone SDK repository %s", sdk_git_id)
+    url_parsing = urlparse(sdk_git_id)
+    sdk_git_id = url_parsing.path
+    if sdk_git_id.startswith("/"):
+        sdk_git_id = sdk_git_id[1:]
 
     credentials_part = ''
     if gh_token:
@@ -348,11 +355,14 @@ def clone_to_path(gh_token, temp_dir, sdk_git_id):
         credentials=credentials_part,
         sdk_git_id=sdk_git_id
     )
-    sdk_path = os.path.join(temp_dir, 'sdk')
-    Repo.clone_from(https_authenticated_url, sdk_path)
-    _LOGGER.info("Clone success")
+    repo = Repo.clone_from(https_authenticated_url, str(temp_dir))
+    # Do NOT clone and set branch at the same time, since we allow branch to be a SHA1
+    # And you can't clone a SHA1
+    if branch:
+        _LOGGER.info("Checkout branch %s", branch)
+        repo.git.checkout(branch)
 
-    return sdk_path
+    _LOGGER.info("Clone success")
 
 def remove_readonly(func, path, _):
     "Clear the readonly bit and reattempt the removal"
@@ -360,17 +370,23 @@ def remove_readonly(func, path, _):
     func(path)
 
 @contextmanager
-def manage_sdk_folder(gh_token, temp_dir, sdk_git_id):
+def manage_git_folder(gh_token, temp_dir, git_id):
     """Context manager to avoid readonly problem while cleanup the temp dir"""
-    sdk_path = clone_to_path(gh_token, temp_dir, sdk_git_id)
-    _LOGGER.debug("SDK path %s", sdk_path)
+    _LOGGER.debug("Git ID %s", git_id)
+    if Path(git_id).exists():
+        yield git_id
+        return None # Do not erase a local folder, just skip here
+
+    # Clone the specific branch
+    split_git_id = git_id.split("@")
+    branch = split_git_id[1] if len(split_git_id) > 1 else None
+    clone_to_path(gh_token, temp_dir, split_git_id[0], branch=branch)
     try:
-        yield sdk_path
+        yield temp_dir
         # Pre-cleanup for Windows http://bugs.python.org/issue26660
     finally:
-        _LOGGER.debug("Preclean SDK folder")
-        shutil.rmtree(sdk_path, onerror=remove_readonly)
-
+        _LOGGER.debug("Preclean Rest folder")
+        shutil.rmtree(temp_dir, onerror=remove_readonly)
 
 def get_full_sdk_id(gh_token, sdk_git_id):
     """If the SDK git id is incomplete, try to complete it with user login"""

@@ -24,5 +24,13 @@ setup(
         "requests",
         "mistune",
         "pyyaml",
-    ]
+        "cookiecutter",
+        "wheel"
+    ],
+    extras_require={
+        'rest': [
+            'flask',
+            'json-rpc'
+        ]
+    }
 )

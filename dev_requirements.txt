@@ -1,4 +1,4 @@
--e .
+-e .[rest]
 pytest-cov
 pytest>=3.2.0
 pylint
