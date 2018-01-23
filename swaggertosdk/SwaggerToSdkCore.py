@@ -10,7 +10,7 @@ from pathlib import Path
 from contextlib import contextmanager
 
 from git import Repo
-from github import Github, GithubException
+from github import Github, GithubException, UnknownObjectException
 
 from .markdown_support import extract_yaml
 from .autorest_tools import autorest_latest_version_finder, autorest_bootstrap_version_finder, autorest_swagger_to_sdk_conf
@@ -163,7 +163,10 @@ def get_pr_object_from_travis(gh_token=None):
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
-    return github_repo.get_pull(int(pr_number))
+    try:
+        return github_repo.get_pull(int(pr_number))
+    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
+        pass
 
 
 def get_commit_object_from_travis(gh_token=None):
@@ -178,7 +181,10 @@ def get_commit_object_from_travis(gh_token=None):
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
-    return github_repo.get_commit(commit_sha)
+    try:
+        return github_repo.get_commit(commit_sha)
+    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
+        pass
 
 
 def get_pr_from_travis_commit_sha(gh_token=None):
@@ -190,7 +196,11 @@ def get_pr_from_travis_commit_sha(gh_token=None):
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
 
-    local_commit = github_repo.get_commit(os.environ['TRAVIS_COMMIT'])
+    try:
+        local_commit = github_repo.get_commit(os.environ['TRAVIS_COMMIT'])
+    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
+        return
+        
     commit_message = local_commit.commit.message
     issues_in_message = re.findall('#([\\d]+)', commit_message)
 
