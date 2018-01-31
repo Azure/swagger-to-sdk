@@ -108,7 +108,7 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
                 sdk_repo.git.push('origin', branch_name, set_upstream=True)
                 if pr_repo_id:
-                    pr_body = "Generated from PR: {}".format(initial_pr.html_url)
+                    pr_body = "Generated from PR: {}".format(initial_git_trigger.html_url)
                     github_pr = do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name, pr_body)
                     comment = compute_pr_comment_with_sdk_pr(github_pr.html_url, sdk_git_id, branch_name)
                     add_comment_to_initial_pr(gh_token, comment)
