@@ -46,19 +46,19 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
 
     with tempfile.TemporaryDirectory() as temp_dir, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), restapi_git_id) as restapi_git_folder, \
-            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_git_id) as sdk_folder:
+            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_git_id+'@'+base_branch_name) as sdk_folder:
 
         sdk_repo = Repo(str(sdk_folder))
         if gh_token:
             branch_name = compute_branch_name(branch_name, gh_token)
 
-        _LOGGER.info('Destination branch for generated code is %s', branch_name)
-        try:
-            _LOGGER.info('Try to checkout the destination branch if it already exists')
-            sdk_repo.git.checkout(branch_name)
-        except GitCommandError:
-            _LOGGER.info('Destination branch does not exists')
-            sdk_repo.git.checkout(base_branch_name)
+        if branch_name:
+            _LOGGER.info('Destination branch for generated code is %s', branch_name)
+            try:
+                _LOGGER.info('Try to checkout the destination branch if it already exists')
+                sdk_repo.git.checkout(branch_name)
+            except GitCommandError:
+                _LOGGER.info('Destination branch does not exists')
 
         if gh_token:
             _LOGGER.info('I have a token, try to sync fork')
