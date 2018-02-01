@@ -1,6 +1,8 @@
-from datetime import datetime
+import os
 from enum import Enum
-from functools import wraps, lru_cache
+from functools import lru_cache
+import hmac
+import hashlib
 import logging
 from queue import Queue
 import re
@@ -11,15 +13,13 @@ from flask import request, jsonify
 
 from github import Github, GithubException, UnknownObjectException
 
-import hmac, hashlib
-import os
-
 from .github_handler import (
     build_from_issue_comment,
     build_from_issues,
     GithubHandler as LocalHandler,
-    generate_sdk_from_commit
+    generate_sdk_from_git_object
 )
+from ..github_tools import exception_to_github
 from . import app
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,12 +31,12 @@ SECRET = b'mydeepsecret'
 
 _HMAC_CHECK = False
 
-def check_hmac(request, secret):
-    data = request.get_data()
-    hmac_tester = hmac.HMAC(b'mydeepsecret', data, hashlib.sha1)
-    if not 'X-Hub-Signature' in request.headers:
+def check_hmac(local_request, secret):
+    data = local_request.get_data()
+    hmac_tester = hmac.HMAC(secret, data, hashlib.sha1)
+    if not 'X-Hub-Signature' in local_request.headers:
         raise ValueError('X-Hub-Signature is mandatory on this WebService')
-    if request.headers['X-Hub-Signature'] == 'sha1='+hmac_tester.hexdigest():
+    if local_request.headers['X-Hub-Signature'] == 'sha1='+hmac_tester.hexdigest():
         return True
     raise ValueError('Bad X-Hub-Signature signature')
 
@@ -126,6 +126,7 @@ def push(body):
     if not sdkid:
         return {'message': 'sdkid is a required query parameter'}
     sdkbase = request.args.get("sdkbase", "master")
+    sdk_tag = request.args.get("repotag", sdkid.split("/")[-1].lower())
 
     rest_api_branch_name = body["ref"][len("refs/heads/"):]
     if rest_api_branch_name == "master":
@@ -133,17 +134,22 @@ def push(body):
 
     gh_token = os.environ["GH_TOKEN"]
     github_con = Github(gh_token)
-    restapi_git_id = body['repository']['full_name']
-    repo = github_con.get_repo(restapi_git_id)
 
-    commit_obj = repo.get_commit(body["after"])
-    generate_sdk_from_commit(
+    sdk_pr_target_repo = github_con.get_repo(sdkid)
+
+    restapi_git_id = body['repository']['full_name']
+    restapi_repo = github_con.get_repo(restapi_git_id)
+    sdk_pr_model = SdkPRModel.from_pr_webhook(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase)
+
+    commit_obj = restapi_repo.get_commit(body["after"])
+    generate_sdk_from_git_object(
         commit_obj,
-        "restapi_auto_"+rest_api_branch_name,
+        sdk_pr_model.head_branch_name,
         restapi_git_id,
         sdkid,
         None, # I don't know if the origin branch comes from "master", assume it.
-        sdkbase
+        fallback_base_branch_name=sdkbase,
+        sdk_tag=sdk_tag
     )
     return {'message': 'No return for this endpoint'}
 
@@ -152,14 +158,15 @@ def rest_pull_request(body):
     if not sdkid:
         return {'message': 'sdkid is a required query parameter'}
     sdkbase = request.args.get("sdkbase", "master")
+    sdk_tag = request.args.get("repotag", sdkid.split("/")[-1].lower())
 
     _LOGGER.info("Received PR action %s", body["action"])
-    _QUEUE.put((body, sdkid, sdkbase))
+    _QUEUE.put((body, sdkid, sdkbase, sdk_tag))
     _LOGGER.info("Received action has been queued. Queue size: %d", _QUEUE.qsize())
 
     return {'message': 'Current queue size: {}'.format(_QUEUE.qsize())}
 
-def rest_handle_action(body, sdkid, sdkbase):
+def rest_handle_action(body, sdkid, sdkbase, sdk_tag):
     """First method in the thread.
     """
     _LOGGER.info("Rest handle action")
@@ -170,75 +177,78 @@ def rest_handle_action(body, sdkid, sdkbase):
 
     restapi_git_id = body['repository']['full_name']
     restapi_repo = github_con.get_repo(restapi_git_id)
+    rest_pr_as_issue = restapi_repo.get_issue(body["number"])
 
     _LOGGER.info("Received PR action %s", body["action"])
-    if body["action"] in ["opened", "reopened"]:
-        return rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase)
-    if body["action"] == "closed":
-        return rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase)
-    if body["action"] == "synchronize": # push to a PR from a fork
-        return rest_pull_sync(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase)    
+    with exception_to_github(rest_pr_as_issue, sdkid):
+        if body["action"] in ["opened", "reopened"]:
+            return rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase, sdk_tag)
+        if body["action"] == "closed":
+            return rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase, sdk_tag)
+        if body["action"] == "synchronize": # push to a PR from a fork
+            return rest_pull_sync(body, github_con, restapi_repo, sdk_pr_target_repo, sdkbase, sdk_tag)
 
-def rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master"):
+def rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master", sdk_tag=None):
 
     rest_basebranch = body["pull_request"]["base"]["ref"]
-    dest_branch = body["pull_request"]["head"]["ref"]
     origin_repo = body["pull_request"]["head"]["repo"]["full_name"]
+    pr_number = body["number"]
 
-    if rest_basebranch == "master":
-        sdk_base = sdk_default_base
-        sdk_checkout_base = None
-    else:
-        sdk_base = "restapi_auto_" + rest_basebranch
-        sdk_checkout_base = sdk_base
+    sdk_pr_model = SdkPRModel.from_pr_webhook(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base)
+    sdk_base = sdk_pr_model.base_branch_name
+    sdk_dest_branch = sdk_pr_model.head_branch_name
 
-    rest_pr = restapi_repo.get_pull(body["number"])
+    sdk_checkout_base = None if rest_basebranch == "master" else sdk_base
+
+    rest_pr = restapi_repo.get_pull(pr_number)
 
     if origin_repo != restapi_repo.full_name:
+        # Let's always take the PR files list, and not the one from the commit.
+        # If the PR contains a merge commit, we might generate the entire world
+        # even if the global PR itself is not impacted by this merge commit.
         _LOGGER.info("This comes from a fork, I need generation first, since targetted branch does not exist")
-        fork_repo = github_con.get_repo(origin_repo)
-        fork_owner = fork_repo.owner.login
-        commit_obj = fork_repo.get_commit(body["pull_request"]["head"]["sha"])
-        subbranch_name_part = fork_owner+"_"+dest_branch
-        sdk_dest_branch = "restapi_auto_" + subbranch_name_part
-        generate_sdk_from_commit(
-            commit_obj,
+        generate_sdk_from_git_object(
+            rest_pr,
             sdk_dest_branch,
             origin_repo,
             sdk_pr_target_repo.full_name,
             sdk_checkout_base,
-            sdk_default_base
+            fallback_base_branch_name=sdk_default_base,
+            sdk_tag=sdk_tag
         )
-    else:
-        sdk_dest_branch = "restapi_auto_" + dest_branch
 
-    try:
+    try: # Try to create or get a PR
         github_pr = sdk_pr_target_repo.create_pull(
             title='Automatic PR of {} into {}'.format(sdk_dest_branch, sdk_base),
             body="Created to sync {}".format(rest_pr.html_url),
             head=sdk_dest_branch,
             base=sdk_base
         )
-        sdk_pr_as_issue = sdk_pr_target_repo.get_issue(github_pr.number)
-        sdk_pr_as_issue.add_to_labels(get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.in_progress))
     except GithubException as err:
         if err.status == 422 and err.data['errors'][0].get('message', '').startswith('A pull request already exists'):
             _LOGGER.info('PR already exists, it was a commit on an open PR')
-            sdk_pr = list(sdk_pr_target_repo.get_pulls(
+            github_pr = list(sdk_pr_target_repo.get_pulls(
                 head=sdk_pr_target_repo.owner.login+":"+sdk_dest_branch,
                 base=sdk_base
             ))[0]
-            sdk_pr_as_issue = sdk_pr_target_repo.get_issue(sdk_pr.number)
-            sdk_pr_as_issue.add_to_labels(get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.in_progress))
-            safe_remove_label(sdk_pr_as_issue, get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.refused))
-            safe_remove_label(sdk_pr_as_issue, get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.merged))
-            return {'message': 'PR already exists'}
         else:
+            _LOGGER.warning("Unable to create PR:\n%s", err.data)
             return {'message': err.data}
     except Exception as err:
         response = traceback.format_exc()
+        _LOGGER.warning("Unable to create PR:\n%s", response)
         return {'message': response}
 
+    try: # Try to label it
+        sdk_pr_as_issue = sdk_pr_target_repo.get_issue(github_pr.number)
+        sdk_pr_as_issue.add_to_labels(get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.in_progress))
+        safe_remove_label(sdk_pr_as_issue, get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.refused))
+        safe_remove_label(sdk_pr_as_issue, get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.merged))
+    except Exception as err:
+        response = traceback.format_exc()
+        _LOGGER.info("Unable to label PR %s:\n%s", github_pr.number, response)
+        return {'message': response}
+        
 
 class SwaggerToSdkLabels(Enum):
     merged = "RestPRMerged", "0e8a16"
@@ -259,36 +269,60 @@ def safe_remove_label(issue, label):
     except GithubException:
         pass
 
-def rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master"):
+class SdkPRModel:
+    def __init__(self, head_branch_name, base_branch_name):
+        self.head_branch_name = head_branch_name
+        self.base_branch_name = base_branch_name
+
+    @classmethod
+    def from_pr_webhook(cls, webhook_body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master"):
+        # What was "head" name
+        origin_repo = webhook_body["pull_request"]["head"]["repo"]["full_name"]
+        dest_branch = webhook_body["pull_request"]["head"]["ref"]
+        if origin_repo != restapi_repo.full_name: # This PR comes from a fork
+            fork_repo = github_con.get_repo(origin_repo)
+            fork_owner = fork_repo.owner.login
+            subbranch_name_part = fork_owner+"_"+dest_branch
+            sdk_dest_branch = "restapi_auto_" + subbranch_name_part
+        else:
+            sdk_dest_branch = "restapi_auto_" + dest_branch
+        _LOGGER.info("SDK head branch should be %s", sdk_dest_branch)
+        full_head = sdk_pr_target_repo.owner.login+":"+sdk_dest_branch
+        _LOGGER.info("Will filter with %s", full_head)
+
+        # What was "base"
+        rest_basebranch = webhook_body["pull_request"]["base"]["ref"]
+        sdk_base = sdk_default_base if rest_basebranch == "master" else "restapi_auto_" + rest_basebranch
+        _LOGGER.info("SDK base branch should be %s", sdk_base)
+
+        return cls(
+            head_branch_name=sdk_dest_branch,
+            base_branch_name=sdk_base
+        )
+
+def rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master", sdk_tag=None):
     _LOGGER.info("Received a PR closed event")
     sdkid = sdk_pr_target_repo.full_name
     rest_pr = restapi_repo.get_pull(body["number"])
 
-    # What was "head" name
-    origin_repo = body["pull_request"]["head"]["repo"]["full_name"]
-    dest_branch = body["pull_request"]["head"]["ref"]
-    if origin_repo != restapi_repo.full_name: # This PR comes from a fork
-        fork_repo = github_con.get_repo(origin_repo)
-        fork_owner = fork_repo.owner.login
-        subbranch_name_part = fork_owner+"_"+dest_branch
-        sdk_dest_branch = "restapi_auto_" + subbranch_name_part
-    else:
-        sdk_dest_branch = "restapi_auto_" + dest_branch
-    _LOGGER.info("SDK head branch should be %s", sdk_dest_branch)
-    full_head = sdk_pr_target_repo.owner.login+":"+sdk_dest_branch
-    _LOGGER.info("Will filter with %s", full_head)
-
-    # What was "base"
-    rest_basebranch = body["pull_request"]["base"]["ref"]
-    sdk_base = sdk_default_base if rest_basebranch == "master" else "restapi_auto_" + rest_basebranch
-    _LOGGER.info("SDK base branch should be %s", sdk_base)
+    sdk_pr_model = SdkPRModel.from_pr_webhook(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base)
 
     sdk_prs = list(sdk_pr_target_repo.get_pulls(
-        head=full_head,
-        base=sdk_base
+        head=sdk_pr_target_repo.owner.login+":"+sdk_pr_model.head_branch_name,
+        base=sdk_pr_model.base_branch_name
     ))
     if not sdk_prs:
-        rest_pr.create_issue_comment("Was unable to find SDK {} PR for this closed PR.".format(sdkid))
+        # Didn't find it, it's probably because the bot wasn't there when it was created. Let's be smart and do it now.
+        rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base, sdk_tag)
+        # Look for it again now
+        sdk_prs = list(sdk_pr_target_repo.get_pulls(
+            head=sdk_pr_target_repo.owner.login+":"+sdk_pr_model.head_branch_name,
+            base=sdk_pr_model.base_branch_name
+        ))
+
+    if not sdk_prs:
+        # Not possible in theory, but let's be sad in the PR comment
+        rest_pr.create_issue_comment("Was unable to create SDK {} PR for this closed PR.".format(sdkid))
     elif len(sdk_prs) == 1:
         sdk_pr = sdk_prs[0]
         sdk_pr_as_issue = sdk_pr_target_repo.get_issue(sdk_pr.number)
@@ -305,29 +339,40 @@ def rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_defa
         pr_list = "\n".join(["- {}".format(pr.html_url) for pr in sdk_prs])
         rest_pr.create_issue_comment("We found several SDK {} PRs and didn't notify closing event.\n{}".format(sdkid, pr_list))
 
-def rest_pull_sync(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master"):
+def rest_pull_sync(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base="master", sdk_tag=None):
 
     if body["before"] == body["after"]:
         return {'message': 'No commit id change'}
 
-    # What was "head" name
     origin_repo = body["pull_request"]["head"]["repo"]["full_name"]
-
     if origin_repo == restapi_repo.full_name:
         _LOGGER.info("This will be handled by 'push' event on the branch")
+        return
 
+    # Look for the SDK pr
+    sdk_pr_model = SdkPRModel.from_pr_webhook(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base)
+    sdk_prs = list(sdk_pr_target_repo.get_pulls(
+        head=sdk_pr_model.head_branch_name,
+        base=sdk_pr_model.base_branch_name
+    ))
+    if not sdk_prs:
+        # Didn't find it, let's consider this event as opening
+        return rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, sdk_default_base, sdk_tag)
+
+    pr_number = body["number"]
+    rest_pr = restapi_repo.get_pull(pr_number)
     dest_branch = body["pull_request"]["head"]["ref"]
     fork_repo = github_con.get_repo(origin_repo)
     fork_owner = fork_repo.owner.login
-    commit_obj = fork_repo.get_commit(body["pull_request"]["head"]["sha"])
     subbranch_name_part = fork_owner+"_"+dest_branch
-    generate_sdk_from_commit(
-        commit_obj,
+    generate_sdk_from_git_object(
+        rest_pr,
         "restapi_auto_"+subbranch_name_part,
         origin_repo,
         sdk_pr_target_repo.full_name,
         None, # I don't know if the origin branch comes from "master", assume it.
-        sdk_default_base
+        fallback_base_branch_name=sdk_default_base,
+        sdk_tag=sdk_tag
     )
 
     return {'message': 'No return for this endpoint'}
@@ -336,9 +381,9 @@ def consume():
     """Consume action and block if there is not.
     """
     while True:
-        body, sdkid, sdkbase = _QUEUE.get()
+        body, sdkid, sdkbase, sdk_tag = _QUEUE.get()
         try:
-            rest_handle_action(body, sdkid, sdkbase)
+            rest_handle_action(body, sdkid, sdkbase, sdk_tag)
         except Exception as err:
             _LOGGER.critical("Worked thread issue:\n%s", traceback.format_exc())
     _LOGGER.info("End of WorkerThread")

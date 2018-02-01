@@ -1,11 +1,18 @@
 import argparse
 import logging
-from io import open
 from pathlib import Path
 import tempfile
 
-from swaggertosdk.SwaggerToSdkNewCLI import *
-from swaggertosdk.SwaggerToSdkCore import *
+from swaggertosdk.SwaggerToSdkNewCLI import (
+    build_project,
+)
+from swaggertosdk.SwaggerToSdkCore import (
+    CONFIG_FILE,
+    read_config,
+    solve_relative_path,
+    extract_conf_from_readmes,
+    get_input_paths,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,13 +30,19 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
         swagger_files_in_pr = [Path(readme)]
     else:
         swagger_files_in_pr =  list(restapi_git_folder.glob('specification/**/readme.md'))
-    extract_conf_from_readmes(None, swagger_files_in_pr, restapi_git_folder, "azure-sdk-for-go", config)
+    _LOGGER.info(f"Readme files: {swagger_files_in_pr}")
+    extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, "azure-sdk-for-python", config)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():
-            if project_pattern and not any(p in project for p in project_pattern):
-                _LOGGER.info("Skip project %s", project)
-                continue
+            if readme:
+                if str(Path(readme)) not in project:
+                    _LOGGER.info("Skip project %s (readme was %s)", project, readme)
+                    continue
+            else:
+                if project_pattern and not any(p in project for p in project_pattern):
+                    _LOGGER.info("Skip project %s", project)
+                    continue
             local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_folder)
 
             markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)

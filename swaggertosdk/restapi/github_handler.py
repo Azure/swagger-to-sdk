@@ -11,17 +11,24 @@ from git import Repo, GitCommandError
 
 from swaggertosdk.build_sdk import generate as build_sdk
 from swaggertosdk.SwaggerToSdkCore import (
-    manage_git_folder,
-    checkout_and_create_branch,
-    do_commit,
-    do_pr,
-    configure_user,
     CONFIG_FILE,
     read_config,
     DEFAULT_COMMIT_MESSAGE,
     get_input_paths,
     extract_conf_from_readmes,
-    checkout_and_create_branch
+    build_swaggertosdk_conf_from_json_readme
+)
+from swaggertosdk.git_tools import (
+    checkout_and_create_branch,
+    do_commit,
+)
+from swaggertosdk.github_tools import (
+    configure_user,
+    exception_to_github,
+    manage_git_folder,
+    do_pr,
+    create_comment,
+    GithubLink
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,13 +61,11 @@ class GithubHandler:
     def act_and_response(self, webhook_data, command):
         issue = webhook_data.issue
 
-        try:
+        with exception_to_github(issue):
             response = self.comment_command(issue, command)
-        except Exception as err:
-            response = "Something's wrong:\n```python\n{}\n```\n".format(traceback.format_exc())
-
-        new_comment = issue.create_comment(response)
-        return 'Posted: {}'.format(new_comment.html_url)
+            new_comment = issue.create_comment(response)
+            return 'Posted: {}'.format(new_comment.html_url)
+        return "Got an exception, commented on the issue"
 
     def comment_command(self, issue, text):
         split_text = text.lower().split()
@@ -70,6 +75,9 @@ class GithubHandler:
             return self.rebuild(issue, split_text[1])
         elif split_text[0] == "help":
             return self.help(issue)
+        elif split_text[0] == "rebase":
+            branch = split_text[1] if len(split_text) > 1 else None
+            return self.rebase(issue, branch)
         else:
             return "I didn't understand your command:\n```bash\n{}\n```\nin this context, sorry :(".format(text)
 
@@ -79,6 +87,35 @@ class GithubHandler:
 - `generate <raw github path to a readme>` : create a PR for this README
 """
         new_comment = issue.create_comment(message)
+
+    def rebase(self, issue, branch=None):
+        if not issue.pull_request:
+            return "Rebase is just supported in PR for now"
+        
+        pr = issue.repository.get_pull(issue.number)
+
+        branch_name = pr.head.ref
+        branched_sdk_id = pr.head.repo.full_name+'@'+branch_name
+
+        upstream_url = 'https://github.com/{}.git'.format(pr.base.repo.full_name)
+        upstream_base = pr.base.ref if not branch else branch
+
+        with tempfile.TemporaryDirectory() as temp_dir, \
+                manage_git_folder(self.gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_id) as sdk_folder:
+
+            sdk_repo = Repo(str(sdk_folder))
+            configure_user(self.gh_token, sdk_repo)
+
+            upstream = sdk_repo.create_remote('upstream', url=upstream_url)
+            upstream.fetch()
+
+            msg = sdk_repo.git.rebase('upstream/{}'.format(upstream_base))
+            _LOGGER.debug(msg)
+            msg = sdk_repo.git.push(force=True)
+            _LOGGER.debug(msg)
+
+            return "Rebase done and pushed to the branch"
+
 
     def generate(self, issue, readme_parameter):
         # Do a start comment
@@ -139,33 +176,50 @@ Done! I created this branch and this PR:
     def rebuild(self, issue, project_pattern):
         if not issue.pull_request:
             return "Rebuild is just supported in PR for now"
+        sdkid = issue.repository.full_name
         pr = issue.repository.get_pull(issue.number)
 
         new_comment = issue.create_comment("Working on generating {} for you!!!".format(project_pattern))
 
         config_path = CONFIG_FILE
         message = "Rebuild by "+issue.html_url
-        initial_pr = None # There is no initial PR to test for files
         autorest_bin = None
 
         branch_name = pr.head.ref
-
-        rest_api_id = "Azure/azure-rest-api-specs" # current
         branched_sdk_id = pr.head.repo.full_name+'@'+branch_name
 
+        if project_pattern.startswith("https://"):
+            link = GithubLink.from_string(project_pattern)
+            link = link.as_raw_link()  # Ensure this is a raw link.
+            rest_api_id = link.gitid
+            rest_api_branch = link.branch_or_commit
+            token = link.token if link.token else self.gh_token
+            path = link.path
+        else:
+            rest_api_id = "Azure/azure-rest-api-specs"
+            rest_api_branch = "master"
+            token = self.gh_token
+            path = None  # Not such notion of path here, since it's inside SwaggerToSdk conf
+        branched_rest_api_id = rest_api_id + "@" + rest_api_branch
+
         with tempfile.TemporaryDirectory() as temp_dir, \
-                manage_git_folder(self.gh_token, Path(temp_dir) / Path("rest"), rest_api_id) as restapi_git_folder, \
+                manage_git_folder(token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
                 manage_git_folder(self.gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_id) as sdk_folder:
 
             sdk_repo = Repo(str(sdk_folder))
             configure_user(self.gh_token, sdk_repo)
 
             config = read_config(sdk_repo.working_tree_dir, config_path)
-
-            def skip_callback(project, local_conf):
-                if not project.startswith(project_pattern):
-                    return True
-                return False
+            if path: # Assume this is a Readme path
+                config["projects"] = {} # Wipe out everything
+                build_swaggertosdk_conf_from_json_readme(path, sdkid, config, base_folder=restapi_git_folder)
+                skip_callback = lambda x, y: False
+            else:
+                def skip_callback(project, local_conf):
+                    del local_conf  # Unused
+                    if not project.startswith(project_pattern):
+                        return True
+                    return False
 
             from swaggertosdk import SwaggerToSdkNewCLI
             SwaggerToSdkNewCLI.build_libraries(config, skip_callback, restapi_git_folder,
@@ -184,20 +238,12 @@ Done! I created this branch and this PR:
         return "Build SDK finished and cleaned"
 
 
-def generate_sdk_from_commit_safe(commit_obj, branch_name, restapi_git_id, sdkid, base_branch_name, fallback_base_branch_name="master"):
-    try:
-        response = generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdkid, base_branch_name, fallback_base_branch_name)
-    except Exception as err:
-        response = "Something's wrong:\n```python\n{}\n```\n".format(traceback.format_exc())
-
-    new_comment = commit_obj.create_comment(response)
-    return 'Posted: {}'.format(new_comment.html_url)    
-
-def generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdk_git_id, base_branch_name, fallback_base_branch_name="master"):
-    """Generate SDK from a commit.
+def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_name, *, fallback_base_branch_name="master", sdk_tag=None):
+    """Generate SDK from a commit or a PR object.
     
-    commit_obj is the initial commit_obj from the RestAPI repo. restapi_git_id explains where to clone the repo.
+    git_object is the initial commit/PR from the RestAPI repo. restapi_git_id explains where to clone the repo.
     sdk_git_id explains where to push the commit.
+    sdk_tag explains what is the tag used in the Readme for the swagger-to-sdk section. If not provided, use sdk_git_id.
     branch_name is the expected branch name in the SDK repo.
     - If this branch exists, use it.
     - If not, use the base branch to create that branch (base branch is where I intend to do my PR)
@@ -211,8 +257,15 @@ def generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdk_git_id
     config_path = CONFIG_FILE
     message_template = DEFAULT_COMMIT_MESSAGE
     autorest_bin = None
+    if sdk_tag is None:
+        sdk_tag = sdk_git_id
 
-    branched_rest_api_id = restapi_git_id+'@'+commit_obj.sha
+    try:
+        checkout_name = git_object.sha # Checkout the sha if commit obj
+    except AttributeError:
+        checkout_name = git_object.head.ref # Checkout the branch name if PR
+
+    branched_rest_api_id = restapi_git_id+'@'+checkout_name
     branched_sdk_git_id = sdk_git_id+'@'+fallback_base_branch_name
 
     with tempfile.TemporaryDirectory() as temp_dir, \
@@ -224,6 +277,7 @@ def generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdk_git_id
         try:
             _LOGGER.info('Try to checkout the destination branch if it already exists')
             sdk_repo.git.checkout(branch_name)
+            _LOGGER.info('The branch exists.')
         except GitCommandError:
             _LOGGER.info('Destination branch does not exists')
             if base_branch_name is not None:
@@ -242,11 +296,13 @@ def generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdk_git_id
 
         from swaggertosdk import SwaggerToSdkNewCLI
         from swaggertosdk import SwaggerToSdkCore
-        swagger_files_in_commit = SwaggerToSdkCore.get_swagger_project_files_in_pr(commit_obj, restapi_git_folder)
+        swagger_files_in_commit = SwaggerToSdkCore.get_swagger_project_files_in_git_object(git_object, restapi_git_folder)
         _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
 
         # Look for configuration in Readme
-        extract_conf_from_readmes(gh_token, swagger_files_in_commit, restapi_git_folder, sdk_git_id, config)
+        _LOGGER.info('Extract conf from Readmes for target: %s', sdk_git_id)
+        extract_conf_from_readmes(swagger_files_in_commit, restapi_git_folder, sdk_tag, config)
+        _LOGGER.info('End of extraction')
 
         def skip_callback(project, local_conf):
             if not swagger_files_in_commit:
@@ -262,14 +318,18 @@ def generate_sdk_from_commit(commit_obj, branch_name, restapi_git_id, sdk_git_id
         SwaggerToSdkNewCLI.build_libraries(config, skip_callback, restapi_git_folder,
                                            sdk_repo, temp_dir, autorest_bin)
 
-        message = message_template + "\n\n" + commit_obj.commit.message
-        commit_sha = do_commit(sdk_repo, message, branch_name, commit_obj.sha)
+        try:
+            commit_for_sha = git_object.commit   # Commit
+        except AttributeError:
+            commit_for_sha = list(git_object.get_commits())[-1].commit  # PR
+        message = message_template + "\n\n" + commit_for_sha.message
+        commit_sha = do_commit(sdk_repo, message, branch_name, commit_for_sha.sha)
         if commit_sha:
             sdk_repo.git.push('origin', branch_name, set_upstream=True)
             commit_url = "https://github.com/{}/commit/{}".format(sdk_git_id, commit_sha)
-            commit_obj.create_comment("Did a commit to SDK for Python:\n{}".format(commit_url))
+            create_comment(git_object, "Did a commit to {}:\n{}".format(sdk_git_id, commit_url))
         else:
-            commit_obj.create_comment("This commit was treated and no generation was made for Python")
+            create_comment(git_object, "This commit was treated and no generation was made for {}".format(sdk_git_id))
 
     _LOGGER.info("Build SDK finished and cleaned")
     return "Build SDK finished and cleaned"

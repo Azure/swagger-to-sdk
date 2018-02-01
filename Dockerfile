@@ -11,6 +11,12 @@ RUN apt-get update && apt-get install -y curl git software-properties-common loc
 RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
     apt-get update && apt-get install -y nodejs
 
+# Go 1.9
+RUN add-apt-repository ppa:gophers/archive && \
+	apt-get update && \
+	apt-get install -y golang-1.9-go
+ENV PATH="/usr/lib/go-1.9/bin:${PATH}"
+
 # Python 3.6
 RUN add-apt-repository ppa:jonathonf/python-3.6 && \
 	apt-get update && \

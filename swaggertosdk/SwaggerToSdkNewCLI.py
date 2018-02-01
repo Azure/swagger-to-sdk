@@ -1,16 +1,11 @@
 """Swagger to SDK"""
 import shutil
-import subprocess
 import logging
 import json
-import os.path
 from pathlib import Path
-import tempfile
-import yaml
 
 from .SwaggerToSdkCore import (
     build_file_content,
-    get_swagger_project_files_in_pr,
     solve_relative_path,
     get_input_paths
 )
@@ -18,7 +13,6 @@ from .autorest_tools import (
     execute_simple_command,
     generate_code,
     merge_options,
-    autorest_swagger_to_sdk_conf
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -145,7 +139,7 @@ def build_libraries(config, skip_callback, restapi_git_folder, sdk_repo, temp_di
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_repo.working_tree_dir)
 
 
-    for project, local_conf in config["projects"].items():
+    for project, local_conf in config.get("projects", {}).items():
         if skip_callback(project, local_conf):
             _LOGGER.info("Skip project %s", project)
             continue

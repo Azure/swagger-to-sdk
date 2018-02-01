@@ -7,31 +7,32 @@ from pathlib import Path
 import sys
 
 from .SwaggerToSdkCore import (
-    IS_TRAVIS,
+    is_travis,
     CONFIG_FILE,
     DEFAULT_BRANCH_NAME,
     DEFAULT_COMMIT_MESSAGE,
     DEFAULT_TRAVIS_BRANCH_NAME,
     DEFAULT_TRAVIS_PR_BRANCH_NAME,
-    get_full_sdk_id,
-    manage_git_folder,
     compute_branch_name,
-    configure_user,
-    sync_fork,
     read_config,
     get_initial_pr,
-    get_swagger_hexsha,
-    do_commit,
-    do_pr,
     add_comment_to_initial_pr,
     compute_pr_comment_with_sdk_pr,
-    get_swagger_project_files_in_pr,
+    get_swagger_project_files_in_git_object,
     get_commit_object_from_travis,
     extract_conf_from_readmes,
     get_input_paths,
 )
-from .autorest_tools import (
-    autorest_swagger_to_sdk_conf
+from .git_tools import (
+    do_commit,
+    get_repo_hexsha,
+)
+from .github_tools import (
+    do_pr,
+    configure_user,
+    sync_fork,
+    manage_git_folder,
+    get_full_sdk_id,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
                  sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
-                 autorest_bin=None):
+                 autorest_bin=None, push=True):
     """Main method of the the file"""
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
 
@@ -62,7 +63,7 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
         if gh_token:
             _LOGGER.info('I have a token, try to sync fork')
             configure_user(gh_token, sdk_repo)
-            sync_fork(gh_token, sdk_git_id, sdk_repo)
+            sync_fork(gh_token, sdk_git_id, sdk_repo, push)
 
         config = read_config(sdk_repo.working_tree_dir, config_path)
 
@@ -72,14 +73,14 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
         if not initial_git_trigger:
             initial_git_trigger = get_commit_object_from_travis(gh_token)
 
-        swagger_files_in_pr = get_swagger_project_files_in_pr(initial_git_trigger, restapi_git_folder) if initial_git_trigger else set()
+        swagger_files_in_pr = get_swagger_project_files_in_git_object(initial_git_trigger, restapi_git_folder) if initial_git_trigger else set()
         _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
 
         # Look for configuration in Readme
-        extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
+        extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
 
         def skip_callback(project, local_conf):
-            if IS_TRAVIS and not swagger_files_in_pr:
+            if is_travis() and not swagger_files_in_pr:
                 return True # Travis with no files found, always skip
 
             if project_pattern and not any(project.startswith(p) for p in project_pattern):
@@ -103,8 +104,8 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
         else:
             raise ValueError(f"Unsupported version {conf_version}")
 
-        if gh_token:
-            hexsha = get_swagger_hexsha(restapi_git_folder)
+        if gh_token and push:
+            hexsha = get_repo_hexsha(restapi_git_folder)
             if do_commit(sdk_repo, message_template, branch_name, hexsha):
                 sdk_repo.git.push('origin', branch_name, set_upstream=True)
                 if pr_repo_id:
@@ -112,10 +113,8 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
                     github_pr = do_pr(gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name, pr_body)
                     comment = compute_pr_comment_with_sdk_pr(github_pr.html_url, sdk_git_id, branch_name)
                     add_comment_to_initial_pr(gh_token, comment)
-            else:
-                add_comment_to_initial_pr(gh_token, "No modification for {}".format(sdk_git_id))
         else:
-            _LOGGER.warning('Skipping commit creation since no token is provided')
+            _LOGGER.warning('Skipping commit creation since no token is provided or no push')
 
     _LOGGER.info("Build SDK finished and cleaned")
 
@@ -180,6 +179,9 @@ def main(argv):
     parser.add_argument('--autorest',
                         dest='autorest_bin',
                         help='Force the Autorest to be executed. Must be a executable command.')
+    parser.add_argument("--push",
+                        dest="push", action="store_true",
+                        help="Should this execution push or just read")
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action="store_true",
                         help="Verbosity in INFO mode")
@@ -208,4 +210,5 @@ def main(argv):
                  args.message,
                  args.base_branch,
                  args.branch,
-                 args.autorest_bin)
+                 args.autorest_bin,
+                 args.push)

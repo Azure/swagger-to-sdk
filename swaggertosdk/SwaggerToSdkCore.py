@@ -1,20 +1,23 @@
-from contextlib import contextmanager
+"""SwaggerToSdk core tools.
+"""
 import json
 import logging
 import os
 import re
-import shutil
-import stat
-import subprocess
 import tempfile
 from pathlib import Path
-from urllib.parse import urlparse
 
-from git import Repo
-from github import Github, GithubException, UnknownObjectException
+from github import Github, UnknownObjectException
 
 from .markdown_support import extract_yaml
-from .autorest_tools import autorest_latest_version_finder, autorest_bootstrap_version_finder, autorest_swagger_to_sdk_conf
+from .autorest_tools import (
+    autorest_latest_version_finder,
+    autorest_bootstrap_version_finder,
+    autorest_swagger_to_sdk_conf,
+)
+from .github_tools import (
+    get_files,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +28,9 @@ DEFAULT_TRAVIS_PR_BRANCH_NAME = 'RestAPI-PR{number}'
 DEFAULT_TRAVIS_BRANCH_NAME = 'RestAPI-{branch}'
 DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
 
-IS_TRAVIS = os.environ.get('TRAVIS') == 'true'
+
+def is_travis():
+    return os.environ.get('TRAVIS') == 'true'
 
 
 def build_file_content():
@@ -36,20 +41,6 @@ def build_file_content():
         'autorest_bootstrap': autorest_bootstrap_version,
     }
 
-
-def checkout_and_create_branch(repo, name):
-    """Checkout branch. Create it if necessary"""
-    local_branch = repo.branches[name] if name in repo.branches else None
-    if not local_branch:
-        if name in repo.remotes.origin.refs:
-            # If origin branch exists but not local, git.checkout is the fatest way
-            # to create local branch with origin link automatically
-            msg = repo.git.checkout(name)
-            _LOGGER.debug(msg)
-            return
-        # Create local branch, will be link to origin later
-        local_branch = repo.create_head(name)
-    local_branch.checkout()
 
 def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
     """Get the documents inside this markdown file, relative to the repo root.
@@ -89,16 +80,13 @@ def swagger_index_from_markdown(base_dir=Path('.')):
 
 def get_swagger_files_in_git_object(git_object):
     """Get the list of Swagger files in the given PR or commit"""
-    try:
-        files_list = git_object.get_files() # Try as a PR object
-    except AttributeError:
-        files_list = git_object.files # Try as a commit object
+    files_list = get_files(git_object)
     return {Path(file.filename) for file in files_list
             if re.match(r"specification/.*\.json", file.filename, re.I) or re.match(r"specification/.*/readme.md", file.filename, re.I)
            }
 
-def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
-    """List project files in the PR, a project file being a Markdown file or a Swagger file."""
+def get_swagger_project_files_in_git_object(pr_object, base_dir=Path('.')):
+    """List project files in the PR or commit, a project file being a Markdown file or a Swagger file."""
     swagger_files_in_pr = get_swagger_files_in_git_object(pr_object)
     swagger_index = swagger_index_from_markdown(base_dir)
     swagger_files_in_pr |= {swagger_index[s]
@@ -107,55 +95,12 @@ def get_swagger_project_files_in_pr(pr_object, base_dir=Path('.')):
     return swagger_files_in_pr
 
 
-def do_commit(repo, message_template, branch_name, hexsha):
-    "Do a commit if modified/untracked files"
-    repo.git.add(repo.working_tree_dir)
-
-    if not repo.git.diff(staged=True):
-        _LOGGER.warning('No modified files in this Autorest run')
-        return False
-
-    checkout_and_create_branch(repo, branch_name)
-    msg = message_template.format(hexsha=hexsha)
-    commit = repo.index.commit(msg)
-    _LOGGER.info("Commit done: %s", msg)
-    return commit.hexsha
-
-
-def sync_fork(gh_token, github_repo_id, repo):
-    """Sync the current branch in this fork against the direct parent on Github"""
-    if not gh_token:
-        _LOGGER.warning('Skipping the upstream repo sync, no token')
-        return
-    _LOGGER.info('Check if repo has to be sync with upstream')
-    github_con = Github(gh_token)
-    github_repo = github_con.get_repo(github_repo_id)
-
-    if not github_repo.parent:
-        _LOGGER.warning('This repo has no upstream')
-        return
-
-    upstream_url = 'https://github.com/{}.git'.format(github_repo.parent.full_name)
-    upstream = repo.create_remote('upstream', url=upstream_url)
-    upstream.fetch()
-    active_branch_name = repo.active_branch.name
-    if not active_branch_name in repo.remotes.upstream.refs:
-        _LOGGER.info('Upstream has no branch %s to merge from', active_branch_name)
-        return
-    else:
-        _LOGGER.info('Merge from upstream')
-    msg = repo.git.rebase('upstream/{}'.format(repo.active_branch.name))
-    _LOGGER.debug(msg)
-    msg = repo.git.push()
-    _LOGGER.debug(msg)
-
-
 def get_pr_object_from_travis(gh_token=None):
     """If Travis, return the Github object representing the PR.
        If result is None, is not Travis.
        The GH token is optional if the repo is public.
     """
-    if not IS_TRAVIS:
+    if not is_travis():
         return
     pr_number = os.environ['TRAVIS_PULL_REQUEST']
     if pr_number == 'false':
@@ -175,7 +120,7 @@ def get_commit_object_from_travis(gh_token=None):
        If result is None, is not Travis.
        The GH token is optional if the repo is public.
     """
-    if not IS_TRAVIS:
+    if not is_travis():
         return
     _LOGGER.warning("Should improved using TRAVIS_COMMIT_RANGE: {}".format(os.environ['TRAVIS_COMMIT_RANGE']))
     commit_sha = os.environ['TRAVIS_COMMIT'] 
@@ -185,14 +130,14 @@ def get_commit_object_from_travis(gh_token=None):
     try:
         return github_repo.get_commit(commit_sha)
     except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
-        pass
+        _LOGGER.critical("Unable to get commit {}".format(commit_sha))
 
 
 def get_pr_from_travis_commit_sha(gh_token=None):
     """Try to determine the initial PR using #<number> in the current commit comment.
     Will check if the found number is really a merged PR.
     The GH token is optional if the repo is public."""
-    if not IS_TRAVIS:
+    if not is_travis():
         return
     github_con = Github(gh_token)
     github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
@@ -200,8 +145,9 @@ def get_pr_from_travis_commit_sha(gh_token=None):
     try:
         local_commit = github_repo.get_commit(os.environ['TRAVIS_COMMIT'])
     except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
+        _LOGGER.critical("Unable to get commit {}".format(os.environ['TRAVIS_COMMIT']))
         return
-        
+
     commit_message = local_commit.commit.message
     issues_in_message = re.findall('#([\\d]+)', commit_message)
 
@@ -232,26 +178,11 @@ def get_initial_pr(gh_token=None):
         get_pr_from_travis_commit_sha(gh_token)
 
 
-def user_from_token(gh_token):
-    """Get user login from GitHub token"""
-    github_con = Github(gh_token)
-    return github_con.get_user()
-
-
-def configure_user(gh_token, repo):
-    """git config --global user.email "you@example.com"
-       git config --global user.name "Your Name"
-    """
-    user = user_from_token(gh_token)
-    repo.git.config('user.email', user.email or 'aspysdk2@microsoft.com')
-    repo.git.config('user.name', user.name or 'SwaggerToSDK Automation')
-
-
 def compute_branch_name(branch_name, gh_token=None):
     """Compute the branch name depended on Travis, default or not"""
     if branch_name:
         return branch_name
-    if not IS_TRAVIS:
+    if not is_travis():
         return DEFAULT_BRANCH_NAME
     _LOGGER.info("Travis detected")
     pr_object = get_initial_pr(gh_token)
@@ -259,55 +190,6 @@ def compute_branch_name(branch_name, gh_token=None):
         return DEFAULT_TRAVIS_BRANCH_NAME.format(branch=os.environ['TRAVIS_BRANCH'])
     return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_object.number)
 
-def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch, pr_body=""):
-    "Do the PR"
-    if not gh_token:
-        _LOGGER.info('Skipping the PR, no token found')
-        return
-    if not sdk_pr_target_repo_id:
-        _LOGGER.info('Skipping the PR, no target repo id')
-        return
-
-    github_con = Github(gh_token)
-    sdk_pr_target_repo = github_con.get_repo(sdk_pr_target_repo_id)
-
-    if '/' in sdk_git_id:
-        sdk_git_owner = sdk_git_id.split('/')[0]
-        _LOGGER.info("Do the PR from %s", sdk_git_owner)
-        head_name = "{}:{}".format(sdk_git_owner, branch_name)
-    else:
-        head_name = branch_name
-        sdk_git_repo = github_con.get_repo(sdk_git_id)
-        sdk_git_owner = sdk_git_repo.owner.login
-
-    try:
-        github_pr = sdk_pr_target_repo.create_pull(
-            title='Automatic PR from {}'.format(branch_name),
-            body=pr_body,
-            head=head_name,
-            base=base_branch
-        )
-    except GithubException as err:
-        if err.status == 422 and err.data['errors'][0].get('message', '').startswith('A pull request already exists'):
-            matching_pulls = sdk_pr_target_repo.get_pulls(base=base_branch, head=sdk_git_owner+":"+head_name)
-            matching_pull = matching_pulls[0]
-            _LOGGER.info('PR already exists: '+matching_pull.html_url)
-            return matching_pull
-        raise
-    _LOGGER.info("Made PR %s", github_pr.html_url)
-    return github_pr
-
-
-def get_swagger_hexsha(restapi_git_folder):
-    """Get the SHA1 of the current repo"""
-    repo = Repo(str(restapi_git_folder))
-    if repo.bare:
-        not_git_hexsha = "notgitrepo"
-        _LOGGER.warning("Not a git repo, SHA1 used will be: %s", not_git_hexsha)
-        return not_git_hexsha
-    hexsha = repo.head.commit.hexsha
-    _LOGGER.info("Found REST API repo SHA1: %s", hexsha)
-    return hexsha
 
 def compute_pr_comment_with_sdk_pr(comment, sdk_fork_id, branch_name):
     travis_string = "[![Build Status]"\
@@ -330,72 +212,6 @@ def add_comment_to_initial_pr(gh_token, comment):
     return True
 
 
-def clone_to_path(gh_token, temp_dir, sdk_git_id, branch=None):
-    """Clone the given repo_id to the temp_dir folder.
-    
-    :param str branch: If specified, switch to this branch. Branch must exist.
-    """
-    _LOGGER.info("Clone SDK repository %s", sdk_git_id)
-    url_parsing = urlparse(sdk_git_id)
-    sdk_git_id = url_parsing.path
-    if sdk_git_id.startswith("/"):
-        sdk_git_id = sdk_git_id[1:]
-
-    credentials_part = ''
-    if gh_token:
-        login = user_from_token(gh_token).login
-        credentials_part = '{user}:{token}@'.format(
-            user=login,
-            token=gh_token
-        )
-    else:
-        _LOGGER.warning('Will clone the repo without writing credentials')
-
-    https_authenticated_url = 'https://{credentials}github.com/{sdk_git_id}.git'.format(
-        credentials=credentials_part,
-        sdk_git_id=sdk_git_id
-    )
-    repo = Repo.clone_from(https_authenticated_url, str(temp_dir))
-    # Do NOT clone and set branch at the same time, since we allow branch to be a SHA1
-    # And you can't clone a SHA1
-    if branch:
-        _LOGGER.info("Checkout branch %s", branch)
-        repo.git.checkout(branch)
-
-    _LOGGER.info("Clone success")
-
-def remove_readonly(func, path, _):
-    "Clear the readonly bit and reattempt the removal"
-    os.chmod(path, stat.S_IWRITE)
-    func(path)
-
-@contextmanager
-def manage_git_folder(gh_token, temp_dir, git_id):
-    """Context manager to avoid readonly problem while cleanup the temp dir"""
-    _LOGGER.debug("Git ID %s", git_id)
-    if Path(git_id).exists():
-        yield git_id
-        return None # Do not erase a local folder, just skip here
-
-    # Clone the specific branch
-    split_git_id = git_id.split("@")
-    branch = split_git_id[1] if len(split_git_id) > 1 else None
-    clone_to_path(gh_token, temp_dir, split_git_id[0], branch=branch)
-    try:
-        yield temp_dir
-        # Pre-cleanup for Windows http://bugs.python.org/issue26660
-    finally:
-        _LOGGER.debug("Preclean Rest folder")
-        shutil.rmtree(temp_dir, onerror=remove_readonly)
-
-def get_full_sdk_id(gh_token, sdk_git_id):
-    """If the SDK git id is incomplete, try to complete it with user login"""
-    if not '/' in sdk_git_id:
-        login = user_from_token(gh_token).login
-        return '{}/{}'.format(login, sdk_git_id)
-    return sdk_git_id
-
-
 def read_config(sdk_git_folder, config_file):
     """Read the configuration file and return JSON"""
     config_path = os.path.join(sdk_git_folder, config_file)
@@ -403,23 +219,38 @@ def read_config(sdk_git_folder, config_file):
         return json.loads(config_fd.read())
 
 
-def extract_conf_from_readmes(gh_token, swagger_files_in_pr, restapi_git_folder, sdk_git_id, config):
+def extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config):
     readme_files_in_pr = {readme for readme in swagger_files_in_pr if readme.name.lower() == "readme.md"}
+    for readme_file in readme_files_in_pr:
+        build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, base_folder=restapi_git_folder)
+
+
+def build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, base_folder='.'):
+    """Get the JSON conf of this README, and create SwaggerToSdk conf.
+
+    Readme path can be any readme syntax accepted by autorest.
+
+    :param str readme_file: A path that Autorest accepts. Raw GH link or absolute path.
+    :param str sdk_dit_id: Repo ID. IF org/login is provided, will be stripped.
+    :config dict config: Config where to update the "projects" key.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
-        for readme_file in readme_files_in_pr:
-            abs_readme_path = Path(restapi_git_folder, readme_file)
-            readme_as_conf = autorest_swagger_to_sdk_conf(abs_readme_path, temp_dir)
-            for swagger_to_sdk_conf in readme_as_conf:
-                repo = swagger_to_sdk_conf.get("repo", "")
-                if gh_token:
-                    repo = get_full_sdk_id(gh_token, repo)
-                if repo.split("/")[-1] == sdk_git_id.split("/")[-1]:
-                    _LOGGER.info("This Readme contains a swagger-to-sdk section for repo {}".format(repo))
-                    config.setdefault("projects",{})[str(readme_file)] = {
-                        "markdown": str(readme_file),
-                        "autorest_options": swagger_to_sdk_conf.get("autorest_options", {}),
-                        "after_scripts": swagger_to_sdk_conf.get("after_scripts", []),
-                    }
+        readme_as_conf = autorest_swagger_to_sdk_conf(Path(base_folder) / Path(readme_file), temp_dir)
+    sdk_git_short_id = sdk_git_id.split("/")[-1].lower()
+    for swagger_to_sdk_conf in readme_as_conf:
+        repo = swagger_to_sdk_conf.get("repo", "")
+        repo = repo.split("/")[-1].lower() # Be sure there is no org/login part
+        if repo == sdk_git_short_id:
+            _LOGGER.info("This Readme contains a swagger-to-sdk section for repo {}".format(repo))
+            generated_config = {
+                "markdown": str(readme_file),
+                "autorest_options": swagger_to_sdk_conf.get("autorest_options", {}),
+                "after_scripts": swagger_to_sdk_conf.get("after_scripts", []),
+            }
+            config.setdefault("projects", {})[str(readme_file)] = generated_config
+            return generated_config
+        else:
+            _LOGGER.info("Skip mismatch {} from {}".format(repo, sdk_git_short_id))
 
 def get_input_paths(global_conf, local_conf):
     """Returns a 2-tuple:

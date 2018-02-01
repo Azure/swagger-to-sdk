@@ -2,6 +2,7 @@ import os.path
 from pathlib import Path
 import shutil
 import tempfile
+from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,10 +11,23 @@ from swaggertosdk.autorest_tools import (
     build_autorest_options,
     merge_options,
     generate_code,
-    autorest_swagger_to_sdk_conf
+    autorest_swagger_to_sdk_conf,
+    execute_simple_command,
 )
 
 CWD = os.path.dirname(os.path.realpath(__file__))
+
+
+def test_execute_simple_command():
+    # This test needs to be compatible with both Windows and Linux...
+    output = execute_simple_command(["python", "--version"])
+    assert "Python" in output
+
+    try:
+        execute_simple_command(["python", "--oiuyertuyerituy"])
+        pytest.fail("This should raise an exception")
+    except CalledProcessError as err:
+        assert "python -h" in err.output
 
 def test_build_autorest_options():
     line = build_autorest_options({"autorest_options": {"A": "value"}}, {"autorest_options": {"B": "value value"}})
