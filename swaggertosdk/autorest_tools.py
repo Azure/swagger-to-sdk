@@ -41,8 +41,12 @@ def autorest_bootstrap_version_finder():
         return {}
 
 
-def merge_options(global_conf, local_conf, key):
-    """Merge the conf using override: local conf is prioritary over global"""
+def merge_options(global_conf, local_conf, key, *, keep_list_order=False):
+    """Merge the conf using override: local conf is prioritary over global.
+
+    If keep_list_order is True, list are merged global+local. Might have duplicate.
+    If false, duplication are removed.
+    """
     global_keyed_conf = global_conf.get(key) # Could be None
     local_keyed_conf = local_conf.get(key) # Could be None
 
@@ -50,6 +54,10 @@ def merge_options(global_conf, local_conf, key):
         return global_keyed_conf or local_keyed_conf
 
     if isinstance(global_keyed_conf, list):
+        if keep_list_order:
+            options = list(global_keyed_conf)
+            options += local_keyed_conf
+            return options
         options = set(global_keyed_conf)
     else:
         options = dict(global_keyed_conf)

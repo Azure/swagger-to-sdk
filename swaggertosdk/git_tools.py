@@ -2,7 +2,7 @@
 """
 import logging
 
-from git import Repo
+from git import Repo, GitCommandError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,6 +19,18 @@ def checkout_and_create_branch(repo, name):
         # Create local branch, will be link to origin later
         local_branch = repo.create_head(name)
     local_branch.checkout()
+
+def checkout_create_push_branch(repo, name):
+    """Checkout this branch. Create it if necessary, and push it to origin.
+    """
+    try:
+        repo.git.checkout(name)
+        _LOGGER.info("Checkout %s success", name)
+    except GitCommandError:
+        _LOGGER.info("Checkout %s was impossible (branch does not exist). Creating it and push it.", name)
+        checkout_and_create_branch(repo, name)
+        repo.git.push('origin', name, set_upstream=True)
+    
 
 def do_commit(repo, message_template, branch_name, hexsha):
     "Do a commit if modified/untracked files"

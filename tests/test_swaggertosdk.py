@@ -17,6 +17,8 @@ from swaggertosdk.SwaggerToSdkCore import (
     get_pr_from_travis_commit_sha,
     build_file_content,
     extract_conf_from_readmes,
+    get_context_tag_from_files_list,
+    get_context_tag_from_git_object,
 )
 from swaggertosdk.github_tools import get_full_sdk_id
 from swaggertosdk.SwaggerToSdkNewCLI import (
@@ -66,6 +68,37 @@ def test_get_swagger_project_files_in_git_object(github_client):
     assert len(swaggers) == 2
 
 
+def test_get_context_tag_from_files_list():
+    files_list = {
+        Path('specification/cdn/resource-manager/readme.md'),
+        Path('specification/cdn/resource-manager/Microsoft.Cdn/stable/2015-06-01/cdn.json')
+    }
+    context_tags = get_context_tag_from_files_list(files_list)
+    assert len(context_tags) == 1
+    assert 'cdn/resource-manager' in context_tags
+
+def test_get_context_tag_from_git_object(github_client):
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2412))
+    assert len(context_tags) == 1
+    assert 'servicefabric/data-plane' in context_tags
+
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2411))
+    assert len(context_tags) == 2
+    assert 'mysql/resource-manager' in context_tags
+    assert 'postgresql/resource-manager' in context_tags
+
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2398))
+    assert len(context_tags) == 0
+
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2413))
+    assert len(context_tags) == 2
+    assert 'cognitiveservices/data-plane/CustomVision/Prediction' in context_tags
+    assert 'cognitiveservices/data-plane/CustomVision/Training' in context_tags
+
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2422))
+    assert len(context_tags) == 1
+    assert 'managementpartner/resource-manager' in context_tags
+ 
 def test_swagger_index_from_markdown():
     assert \
         {

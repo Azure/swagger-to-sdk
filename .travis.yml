@@ -6,6 +6,6 @@ python:
 install:
   - pip install -r dev_requirements.txt
 script: 
-  - pytest
+  - pytest --cov=swaggertosdk
 after_success:
   - coveralls

@@ -17,10 +17,11 @@ RUN add-apt-repository ppa:gophers/archive && \
 	apt-get install -y golang-1.9-go
 ENV PATH="/usr/lib/go-1.9/bin:${PATH}"
 
-# Python 3.6
+# Python 3.6 (as default Python)
 RUN add-apt-repository ppa:jonathonf/python-3.6 && \
 	apt-get update && \
-	apt-get install -y python3.6
+	apt-get install -y python3.6 && \
+	ln -s /usr/bin/python3.6 /usr/local/bin/python
 
 # Install pip for Python 3.6
 RUN curl -sL https://bootstrap.pypa.io/get-pip.py | python3.6

@@ -61,6 +61,21 @@ def test_merge_options():
     result = merge_options({'a': {1: 2, 2: 3}}, {'a': {3: 4, 2: 3}}, 'a')
     assert result == {1: 2, 2: 3, 3: 4}
 
+    global_dict = {'after_scripts': [
+        'gofmt -w ./services/',
+        'go get -u github.com/Azure/azure-sdk-for-go/tools/profileBuilder',
+        'profileBuilder -s list -l ./profiles/2017-03-09/defintion.txt -name 2017-03-09',
+        'profileBuilder -s preview -name preview',
+        'profileBuilder -s latest -name latest'
+    ]}
+    result = merge_options(global_dict, {'after_scripts': []}, 'after_scripts', keep_list_order=True)
+    assert result == [
+        'gofmt -w ./services/',
+        'go get -u github.com/Azure/azure-sdk-for-go/tools/profileBuilder',
+        'profileBuilder -s list -l ./profiles/2017-03-09/defintion.txt -name 2017-03-09',
+        'profileBuilder -s preview -name preview',
+        'profileBuilder -s latest -name latest'
+    ]
 
 def test_generate_code(monkeypatch):
     mocked_check_output = MagicMock()

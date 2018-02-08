@@ -16,10 +16,13 @@ from swaggertosdk.SwaggerToSdkCore import (
     DEFAULT_COMMIT_MESSAGE,
     get_input_paths,
     extract_conf_from_readmes,
-    build_swaggertosdk_conf_from_json_readme
+    build_swaggertosdk_conf_from_json_readme,
+    get_swagger_project_files_in_git_object
 )
+from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
 from swaggertosdk.git_tools import (
     checkout_and_create_branch,
+    checkout_create_push_branch,
     do_commit,
 )
 from swaggertosdk.github_tools import (
@@ -238,7 +241,7 @@ Done! I created this branch and this PR:
         return "Build SDK finished and cleaned"
 
 
-def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_name, *, fallback_base_branch_name="master", sdk_tag=None):
+def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_names, *, fallback_base_branch_name="master", sdk_tag=None):
     """Generate SDK from a commit or a PR object.
     
     git_object is the initial commit/PR from the RestAPI repo. restapi_git_id explains where to clone the repo.
@@ -247,7 +250,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
     branch_name is the expected branch name in the SDK repo.
     - If this branch exists, use it.
     - If not, use the base branch to create that branch (base branch is where I intend to do my PR)
-    - If base_branch is not provided, use fallback_base_branch_name as base
+    - If base_branch_names is not provided, use fallback_base_branch_name as base
     - If this base branch is provided and does not exists, create this base branch first using fallback_base_branch_name (this one is required to exist)
 
     WARNING:
@@ -272,32 +275,28 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
             manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_git_id) as sdk_folder:
 
+        swagger_files_in_commit = get_swagger_project_files_in_git_object(git_object, restapi_git_folder)
+        _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
+
+        # SDK part
         sdk_repo = Repo(str(sdk_folder))
-        _LOGGER.info('Destination branch for generated code is %s', branch_name)
+
+        for base_branch in base_branch_names:
+            _LOGGER.info('Checkout and create %s', base_branch)
+            checkout_and_create_branch(sdk_repo, base_branch)
+
+        _LOGGER.info('Try to checkout destination branch %s', branch_name)
         try:
-            _LOGGER.info('Try to checkout the destination branch if it already exists')
             sdk_repo.git.checkout(branch_name)
             _LOGGER.info('The branch exists.')
         except GitCommandError:
             _LOGGER.info('Destination branch does not exists')
-            if base_branch_name is not None:
-                _LOGGER.info('Try to checkout base branch {} '.format(base_branch_name))
-                try:
-                    sdk_repo.git.checkout(base_branch_name)
-                except GitCommandError:
-                    _LOGGER.info('Base branch does not exists, create it from {}'.format(fallback_base_branch_name))
-                    checkout_and_create_branch(sdk_repo, base_branch_name)
-                    sdk_repo.git.push('origin', base_branch_name, set_upstream=True)
+            # Will be created by do_commit
 
         configure_user(gh_token, sdk_repo)
 
         config = read_config(sdk_repo.working_tree_dir, config_path)
         global_conf = config["meta"]
-
-        from swaggertosdk import SwaggerToSdkNewCLI
-        from swaggertosdk import SwaggerToSdkCore
-        swagger_files_in_commit = SwaggerToSdkCore.get_swagger_project_files_in_git_object(git_object, restapi_git_folder)
-        _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
 
         # Look for configuration in Readme
         _LOGGER.info('Extract conf from Readmes for target: %s', sdk_git_id)
@@ -315,8 +314,8 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
                 return True
             return False
 
-        SwaggerToSdkNewCLI.build_libraries(config, skip_callback, restapi_git_folder,
-                                           sdk_repo, temp_dir, autorest_bin)
+        build_libraries(config, skip_callback, restapi_git_folder,
+                        sdk_repo, temp_dir, autorest_bin)
 
         try:
             commit_for_sha = git_object.commit   # Commit
@@ -325,12 +324,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         message = message_template + "\n\n" + commit_for_sha.message
         commit_sha = do_commit(sdk_repo, message, branch_name, commit_for_sha.sha)
         if commit_sha:
+            for base_branch in base_branch_names:
+                sdk_repo.git.push('origin', base_branch, set_upstream=True)    
             sdk_repo.git.push('origin', branch_name, set_upstream=True)
-            commit_url = "https://github.com/{}/commit/{}".format(sdk_git_id, commit_sha)
-            create_comment(git_object, "Did a commit to {}:\n{}".format(sdk_git_id, commit_url))
-        else:
-            create_comment(git_object, "This commit was treated and no generation was made for {}".format(sdk_git_id))
-
-    _LOGGER.info("Build SDK finished and cleaned")
-    return "Build SDK finished and cleaned"
-        
+            return "https://github.com/{}/commit/{}".format(sdk_git_id, commit_sha)

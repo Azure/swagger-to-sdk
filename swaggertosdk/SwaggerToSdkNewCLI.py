@@ -100,7 +100,7 @@ def write_build_file(sdk_root, local_conf):
 
 
 def execute_after_script(sdk_root, global_conf, local_conf):
-    after_scripts = merge_options(global_conf, local_conf, "after_scripts") or []
+    after_scripts = merge_options(global_conf, local_conf, "after_scripts", keep_list_order=True) or []
     for script in after_scripts:
         _LOGGER.info("Execute after script: %s", script)
         execute_simple_command(script, cwd=sdk_root, shell=True)

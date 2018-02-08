@@ -49,7 +49,7 @@ def exception_to_github(github_obj_to_comment, summary=""):
         )
         response += content
         response += "\n\n</p></details>"
-        context.comment = github_obj_to_comment.create_comment(response)
+        context.comment = create_comment(github_obj_to_comment, response)
 
 def user_from_token(gh_token):
     """Get user login from GitHub token"""
@@ -63,6 +63,14 @@ def create_comment(github_object, body):
         return github_object.create_issue_comment(body)  # It's a PR
     except AttributeError:
         return github_object.create_comment(body)   # It's a commit/issue
+
+def get_comments(github_object):
+    """Get a list of comments, whater the object is a PR, a commit or an issue.
+    """
+    try:
+        return github_object.get_issue_comments()  # It's a PR
+    except AttributeError:
+        return github_object.get_comments()   # It's a commit/issue
 
 def get_files(github_object):
     """Get files from a PR or a commit.
@@ -114,6 +122,35 @@ def sync_fork(gh_token, github_repo_id, repo, push=True):
     if push:
         msg = repo.git.push()
         _LOGGER.debug(msg)
+
+def get_or_create_pull(github_repo, title, body, head, base):
+    """Try to create the PR. If the PR exists, try to find it instead. Raises otherwise.
+
+    You should always use the complete head syntax "org:branch", since the syntax is required
+    in case of listing.
+    """
+    try: # Try to create or get a PR
+        return github_repo.create_pull(
+            title=title,
+            body=body,
+            head=head,
+            base=base
+        )
+    except GithubException as err:
+        if err.status == 422 and err.data['errors'][0].get('message', '').startswith('A pull request already exists'):
+            _LOGGER.info('PR already exists, get this PR')
+            return list(github_repo.get_pulls(
+                head=head,
+                base=base
+            ))[0]
+        else:
+            _LOGGER.warning("Unable to create PR:\n%s", err.data)
+            raise
+    except Exception as err:
+        response = traceback.format_exc()
+        _LOGGER.warning("Unable to create PR:\n%s", response)
+        raise
+    
 
 def clone_to_path(gh_token, folder, sdk_git_id, branch=None):
     """Clone the given repo_id to the folder.
@@ -257,3 +294,48 @@ class GithubLink:
             self.path,
             self.token
         )
+
+class DashboardCommentableObject:
+    def __init__(self, issue_or_pr, header):
+        self._issue_or_pr = issue_or_pr
+        self._header = header
+
+    def create_comment(self, text):
+        """Mimic issue API, so we can use it everywhere.
+        Return dashboard comment.
+        """
+        return DashboardComment.get_or_create(self._issue_or_pr, self._header, text)
+
+class DashboardComment:
+    def __init__(self, github_comment, header):
+        self.github_comment = github_comment
+        self._header = header
+
+    @classmethod
+    def get_or_create(cls, issue, header, text=None):
+        """Get or create the dashboard comment in this issue.
+        """
+        for comment in get_comments(issue):
+            try:
+                if comment.body.splitlines()[0] == header:
+                    obj = cls(comment, header)
+                    break
+            except IndexError: # The comment body is empty
+                pass
+        # Hooooooo, no dashboard comment, let's create one
+        else:
+            comment = create_comment(issue, header)
+            obj = cls(comment, header)
+        if text:
+            obj.edit(text)
+        return obj
+
+    def edit(self, text):
+        self.github_comment.edit(self._header+"\n"+text)
+    
+    @property
+    def body(self):
+        return self.github_comment.body[len(self._header+"\n"):]
+
+    def delete(self):
+        self.github_comment.delete()

@@ -16,6 +16,8 @@ from swaggertosdk.github_tools import (
     get_files,
     create_comment,
     GithubLink,
+    DashboardCommentableObject,
+    DashboardComment
 )
 
 
@@ -79,6 +81,31 @@ def test_exception_to_github(github_client):
     assert error.comment is not None
     assert "Swagger to SDK encountered a Subprocess error: (Python bot)" in error.comment.body
     assert "no output" in error.comment.body
+
+    # Clean my mess
+    error.comment.delete()
+
+def test_dashboard(github_client):
+    # Prepare
+    repo = github_client.get_repo("lmazuel/TestingRepo")
+    issue = repo.get_issue(15)
+    initial_size = len(list(issue.get_comments()))
+    header = "# MYHEADER"
+
+    dashboard = DashboardCommentableObject(issue, header)
+
+    with exception_to_github(dashboard, "Python bot") as error:
+        "Test".fakemethod(12)  # pylint: disable=no-member    
+    
+    after_size = len(list(issue.get_comments()))
+    assert after_size == initial_size + 1
+
+    assert error.comment is not None
+    assert "Swagger to SDK encountered an unknown error" in error.comment.body
+
+    dashboard.create_comment("New text comment")
+    after_size_2 = len(list(issue.get_comments()))
+    assert after_size == after_size_2
 
     # Clean my mess
     error.comment.delete()

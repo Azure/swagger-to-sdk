@@ -78,6 +78,44 @@ def swagger_index_from_markdown(base_dir=Path('.')):
         for doc in get_documents_in_markdown_file(markdown_file, base_dir)
     }
 
+def get_context_tag_from_files_list(files_list):
+    """Get a list of context tag from a list of files.
+    Can take a Path or a str. Path will be match using posix.
+    """
+    contexts = set()
+    for file in files_list:
+        filename = file.as_posix() if hasattr(file, 'as_posix') else file
+        match = re.match(r"specification/(.*)/readme.md", filename, re.I)
+        if match:
+            contexts.add(match.groups()[0])
+    return contexts
+
+def get_context_tag_from_git_object(git_object):
+    context_tags = set()
+    files_list = get_files(git_object)
+    for file in files_list:
+        filepath = Path(file.filename)
+        filename = filepath.as_posix()
+        # Match if RP name
+        match = re.match(r"specification/(.*)/Microsoft.\w*/(stable|preview)/", filename, re.I)
+        if match:
+            context_tags.add(match.groups()[0])
+            continue
+        # Match if stable/preview but not RP like ARM (i.e. Cognitive Services)
+        match = re.match(r"specification/(.*)/(stable|preview)/", filename, re.I)
+        if match:
+            context_tags.add(match.groups()[0])
+            continue
+        # Match Readme
+        # Do it last step, because if some weird Readme for ServiceFabric...
+        match = re.match(r"specification/(.*)/readme.\w*.?md", filename, re.I)
+        if match:
+            context_tags.add(match.groups()[0])
+            continue
+        # No context-tags
+    return context_tags        
+        
+
 def get_swagger_files_in_git_object(git_object):
     """Get the list of Swagger files in the given PR or commit"""
     files_list = get_files(git_object)

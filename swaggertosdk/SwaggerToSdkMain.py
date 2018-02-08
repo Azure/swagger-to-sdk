@@ -22,6 +22,7 @@ from .SwaggerToSdkCore import (
     get_commit_object_from_travis,
     extract_conf_from_readmes,
     get_input_paths,
+    get_context_tag_from_files_list
 )
 from .git_tools import (
     do_commit,
@@ -75,6 +76,9 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
 
         swagger_files_in_pr = get_swagger_project_files_in_git_object(initial_git_trigger, restapi_git_folder) if initial_git_trigger else set()
         _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
+
+        context_tags = get_context_tag_from_files_list(swagger_files_in_pr)
+        _LOGGER.info("Context tags: %s", context_tags)
 
         # Look for configuration in Readme
         extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
