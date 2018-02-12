@@ -17,6 +17,7 @@ from .autorest_tools import (
 )
 from .github_tools import (
     get_files,
+    GithubLink
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -258,22 +259,39 @@ def read_config(sdk_git_folder, config_file):
 
 
 def extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config):
-    readme_files_in_pr = {readme for readme in swagger_files_in_pr if readme.name.lower() == "readme.md"}
+    readme_files_in_pr = {readme for readme in swagger_files_in_pr if getattr(readme, "name", readme).lower().endswith("readme.md")}
     for readme_file in readme_files_in_pr:
         build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, base_folder=restapi_git_folder)
 
+def get_readme_path(readme_file, base_folder='.'):
+    """Get a readable Readme path.
+
+    If start with http, assume online, ignore base_folder and convert to raw link if necessary.
+    If base_folder is not None, assume relative to base_folder.
+    """
+    if readme_file.startswith("http"):
+        return GithubLink.from_string(readme_file).as_raw_link()
+    else:
+        if base_folder is None:
+            base_folder='.'
+        return str(Path(base_folder) / Path(readme_file))
 
 def build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, base_folder='.'):
     """Get the JSON conf of this README, and create SwaggerToSdk conf.
 
     Readme path can be any readme syntax accepted by autorest.
+    readme_file will be project key as-is.
 
     :param str readme_file: A path that Autorest accepts. Raw GH link or absolute path.
     :param str sdk_dit_id: Repo ID. IF org/login is provided, will be stripped.
     :config dict config: Config where to update the "projects" key.
     """
+    readme_full_path = get_readme_path(readme_file, base_folder)
     with tempfile.TemporaryDirectory() as temp_dir:
-        readme_as_conf = autorest_swagger_to_sdk_conf(Path(base_folder) / Path(readme_file), temp_dir)
+        readme_as_conf = autorest_swagger_to_sdk_conf(
+            readme_full_path,
+            temp_dir
+        )
     sdk_git_short_id = sdk_git_id.split("/")[-1].lower()
     for swagger_to_sdk_conf in readme_as_conf:
         repo = swagger_to_sdk_conf.get("repo", "")
@@ -281,7 +299,7 @@ def build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, ba
         if repo == sdk_git_short_id:
             _LOGGER.info("This Readme contains a swagger-to-sdk section for repo {}".format(repo))
             generated_config = {
-                "markdown": str(readme_file),
+                "markdown": readme_full_path,
                 "autorest_options": swagger_to_sdk_conf.get("autorest_options", {}),
                 "after_scripts": swagger_to_sdk_conf.get("after_scripts", []),
             }

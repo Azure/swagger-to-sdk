@@ -23,11 +23,12 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
 
     global_conf = config["meta"]
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_folder)
-    restapi_git_folder = Path(restapi_git_folder).expanduser()
+    if restapi_git_folder:
+        restapi_git_folder = Path(restapi_git_folder).expanduser()
 
     # Look for configuration in Readme
     if readme:
-        swagger_files_in_pr = [Path(readme)]
+        swagger_files_in_pr = [readme]
     else:
         swagger_files_in_pr =  list(restapi_git_folder.glob('specification/**/readme.md'))
     _LOGGER.info(f"Readme files: {swagger_files_in_pr}")
@@ -36,7 +37,7 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():
             if readme:
-                if str(Path(readme)) not in project:
+                if str(readme) not in project:
                     _LOGGER.info("Skip project %s (readme was %s)", project, readme)
                     continue
             else:
@@ -45,20 +46,25 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
                     continue
             local_conf["autorest_options"] = solve_relative_path(local_conf.get("autorest_options", {}), sdk_folder)
 
-            markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
+            if readme and readme.startswith("http"):
+                # Simplify here, do not support anything else than Readme.md
+                absolute_markdown_path = readme
+                _LOGGER.info(f"HTTP Markdown input: {absolute_markdown_path}")
+            else:    
+                markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
 
-            _LOGGER.info(f"Markdown input: {markdown_relative_path}")
-            _LOGGER.info(f"Optional inputs: {optional_relative_paths}")
+                _LOGGER.info(f"Markdown input: {markdown_relative_path}")
+                _LOGGER.info(f"Optional inputs: {optional_relative_paths}")
 
-            absolute_markdown_path = None
-            if markdown_relative_path:
-                absolute_markdown_path = Path(restapi_git_folder, markdown_relative_path).resolve()
-            if optional_relative_paths:
-                local_conf.setdefault('autorest_options', {})['input-file'] = [
-                    Path(restapi_git_folder, input_path).resolve()
-                    for input_path
-                    in optional_relative_paths
-                ]
+                absolute_markdown_path = None
+                if markdown_relative_path:
+                    absolute_markdown_path = Path(restapi_git_folder or "", markdown_relative_path).resolve()
+                if optional_relative_paths:
+                    local_conf.setdefault('autorest_options', {})['input-file'] = [
+                        Path(restapi_git_folder or "", input_path).resolve()
+                        for input_path
+                        in optional_relative_paths
+                    ]
 
             build_project(
                 temp_dir,
@@ -78,7 +84,7 @@ def generate_main():
         description='Build SDK using Autorest, offline version.',
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--rest-folder', '-r',
-                        dest='restapi_git_folder', default='.',
+                        dest='restapi_git_folder', default=None,
                         help='Rest API git folder. [default: %(default)s]')
     parser.add_argument('--project', '-p',
                         dest='project', action='append',
@@ -99,8 +105,9 @@ def generate_main():
                         dest="debug", action="store_true",
                         help="Verbosity in DEBUG mode")
 
-    parser.add_argument('sdk_folder',
-                        help='A Python SDK folder.')
+    parser.add_argument('--sdk-folder', '-s',
+                        dest='sdk_folder', default='.',
+                        help='A Python SDK folder. [default: %(default)s]')
 
     args = parser.parse_args()
     main_logger = logging.getLogger()
