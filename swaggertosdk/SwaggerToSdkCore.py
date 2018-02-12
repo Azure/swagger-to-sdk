@@ -283,7 +283,7 @@ def get_readme_path(readme_file, base_folder='.'):
     If start with http, assume online, ignore base_folder and convert to raw link if necessary.
     If base_folder is not None, assume relative to base_folder.
     """
-    if readme_file.startswith("http"):
+    if not isinstance(readme_file, Path) and readme_file.startswith("http"):
         return GithubLink.from_string(readme_file).as_raw_link()
     else:
         if base_folder is None:
