@@ -265,6 +265,7 @@ def rest_pull_open(body, github_con, restapi_repo, sdk_pr_target_repo, context_t
 
 def create_context_pr(sdk_pr_target_repo, context_tags, sdk_base):
     context_branch = "restapi_auto_"+context_tags[0]
+    context_pr = None
     try:
         context_pr = get_or_create_pull(
             sdk_pr_target_repo,
