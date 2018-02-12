@@ -32,5 +32,10 @@ setup(
             'flask',
             'json-rpc'
         ]
-    }
+    },
+    entry_points = {
+        'console_scripts': [
+            'generate_sdk=swaggertosdk.generate_sdk:generate_main'
+        ],
+    }    
 )

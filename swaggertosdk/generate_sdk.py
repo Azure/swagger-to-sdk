@@ -33,6 +33,8 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     if readme:
         swagger_files_in_pr = [readme]
     else:
+        if not restapi_git_folder:
+            raise ValueError("RestAPI folder must be set if you don't provide a readme.")
         swagger_files_in_pr =  list(restapi_git_folder.glob('specification/**/readme.md'))
     _LOGGER.info(f"Readme files: {swagger_files_in_pr}")
     extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, repotag, config)
