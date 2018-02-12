@@ -188,6 +188,13 @@ def rest_handle_action(body, sdkid, sdkbase, sdk_tag):
     if len(context_tags) == 0:
         dashboard.create_comment("Unable to detect any generation context from this PR.")
         return
+    context_tags_limit = 3
+    if len(context_tags) > context_tags_limit:
+        dashboard.create_comment("This PR contains more than {} context, SDK generation is not enabled. Contexts found:\n{}".format(
+            context_tags_limit,
+            "\n".join(["- {}".format(ctxt) for ctxt in context_tags])
+        ))
+        return
 
     _LOGGER.info("Received PR action %s", body["action"])
     with exception_to_github(dashboard, sdk_tag):
