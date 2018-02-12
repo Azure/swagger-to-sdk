@@ -19,7 +19,7 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     install_requires=[
-        "PyGithub>=1.34", # Compatible with 3.6 after 1.34
+        "PyGithub>=1.36", # Can Merge PR after 1.36
         "GitPython",
         "requests",
         "mistune",

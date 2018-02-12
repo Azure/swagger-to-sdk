@@ -371,6 +371,9 @@ def rest_pull_close(body, github_con, restapi_repo, sdk_pr_target_repo, context_
         try:
             if body["pull_request"]["merged"]:
                 sdk_pr_as_issue.add_to_labels(get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.merged))
+                if context_branch and sdk_pr.mergeable:
+                    # Merge context PR automatically
+                    sdk_pr.merge(merge_method="squash")
             else:
                 sdk_pr_as_issue.add_to_labels(get_or_create_label(sdk_pr_target_repo, SwaggerToSdkLabels.refused))
                 sdk_pr.edit(state="closed")
