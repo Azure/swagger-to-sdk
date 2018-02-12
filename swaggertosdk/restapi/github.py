@@ -443,6 +443,7 @@ def consume():
     """
     while True:
         body, sdkid, sdkbase, sdk_tag = _QUEUE.get()
+        _LOGGER.info("Pop from queue. Queue size: %d", _QUEUE.qsize())
         try:
             rest_handle_action(body, sdkid, sdkbase, sdk_tag)
         except Exception as err:
