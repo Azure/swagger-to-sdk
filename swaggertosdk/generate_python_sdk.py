@@ -12,9 +12,11 @@ from swaggertosdk.SwaggerToSdkCore import (
     solve_relative_path,
     extract_conf_from_readmes,
     get_input_paths,
+    get_repo_tag_meta,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
 
 def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folder, autorest_bin=None):
 
@@ -22,6 +24,7 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     config = read_config(sdk_folder, config_path)
 
     global_conf = config["meta"]
+    repotag = get_repo_tag_meta(global_conf)
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_folder)
     if restapi_git_folder:
         restapi_git_folder = Path(restapi_git_folder).expanduser()
@@ -32,7 +35,7 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     else:
         swagger_files_in_pr =  list(restapi_git_folder.glob('specification/**/readme.md'))
     _LOGGER.info(f"Readme files: {swagger_files_in_pr}")
-    extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, "azure-sdk-for-python", config)
+    extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, repotag, config)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for project, local_conf in config["projects"].items():

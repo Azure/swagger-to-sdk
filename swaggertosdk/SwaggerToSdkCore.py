@@ -43,6 +43,20 @@ def build_file_content():
     }
 
 
+def get_repo_tag_meta(meta_conf):
+    repotag = meta_conf.get("repotag")
+    if repotag:
+         return repotag
+    # Guess for now, "repotag" should be added everywhere
+    if "go" in meta_conf["autorest_options"]:
+        return "azure-sdk-for-go"
+    if "ruby" in meta_conf["autorest_options"]:
+        return "azure-sdk-for-ruby"
+    if "java" in meta_conf["autorest_options"]:
+        return "azure-libraries-for-java"
+    raise ValueError("No repotag found or infered")
+
+
 def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
     """Get the documents inside this markdown file, relative to the repo root.
 
