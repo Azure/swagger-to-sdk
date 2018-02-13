@@ -43,7 +43,7 @@ def exception_to_github(github_obj_to_comment, summary=""):
                 content += "and no output"
         except Exception:
             content = "```python\n{}\n```".format(traceback.format_exc())
-        response = "<details><summary>Swagger to SDK encountered {}{}</summary><p>\n\n".format(
+        response = "<details><summary>Encountered {}{}</summary><p>\n\n".format(
             error_type,
             summary
         )

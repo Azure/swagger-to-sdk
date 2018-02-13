@@ -13,10 +13,13 @@ from flask import request, jsonify
 
 from github import Github, GithubException, UnknownObjectException
 
+from .bot_framework import (
+    BotHandler
+)
+from .sdkbot import (
+    GithubHandler
+)
 from .github_handler import (
-    build_from_issue_comment,
-    build_from_issues,
-    GithubHandler as LocalHandler,
     generate_sdk_from_git_object
 )
 from ..github_tools import (
@@ -50,10 +53,12 @@ def check_hmac(local_request, secret):
 @app.route('/github', methods=['POST'])
 def notify():
     """Github main endpoint."""
+    github_bot = GithubHandler()
+    bot = BotHandler(github_bot)
     github_index = {
         'ping': ping,
-        'issue_comment': issue_comment,
-        'issues': issues
+        'issue_comment': bot.issue_comment,
+        'issues': bot.issues
     }
     return handle_github_webhook(
         github_index,
@@ -69,6 +74,9 @@ def rest_notify():
         'push': push,
         'pull_request': rest_pull_request
     }
+    if not _WORKER_THREAD.is_alive():
+        _WORKER_THREAD.start()
+    
     return handle_github_webhook(
         github_index,
         request.headers['X-GitHub-Event'],
@@ -83,50 +91,13 @@ def handle_github_webhook(github_index, gh_event_type, json_body):
     json_answer = notify_github(github_index, gh_event_type, json_body)
     return jsonify(json_answer)
 
-@lru_cache()
-def robot_name():
-    github_con = Github(os.environ["GH_TOKEN"])
-    return github_con.get_user().login
-
 def notify_github(github_index, event_type, json_body):
-    if json_body['sender']['login'].lower() == robot_name().lower():
-        return {'message': 'I don\'t talk to myself, I\'m not schizo'}
     if event_type in github_index:
         return github_index[event_type](json_body)
     return {'message': 'Not handled currently'}
 
 def ping(body):
     return {'message': 'Moi aussi zen beaucoup'}
-
-def issue_comment(body):
-    if body["action"] in ["created", "edited"]:
-        webhook_data = build_from_issue_comment(body)
-        response = manage_comment(webhook_data)
-        if response:
-            return response
-    return {'message': 'Nothing for me'}
-    
-def issues(body):
-    if body["action"] in ["opened"]:
-        webhook_data = build_from_issues(body)
-        response = manage_comment(webhook_data)
-        if response:
-            return response
-    return {'message': 'Nothing for me'}
-
-def manage_comment(webhook_data):
-    handler = LocalHandler()
-    
-    # Is someone talking to me:
-    message = re.search("@{} (.*)".format(robot_name()), webhook_data.text, re.I)
-    if message:
-        command = message.group(1)
-        try:
-            response = handler.act_and_response(webhook_data, command)
-        except Exception as err:
-            response = traceback.format_exc()
-        if response:
-            return {'message': response}
 
 def push(body):
     sdkid = request.args.get("sdkid")
@@ -454,4 +425,3 @@ _WORKER_THREAD = Thread(
     target=consume,
     name="WorkerThread"
 )
-_WORKER_THREAD.start()

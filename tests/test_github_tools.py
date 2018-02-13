@@ -38,7 +38,7 @@ def test_exception_to_github(github_client):
 
     # Test
     assert error.comment is not None
-    assert "Swagger to SDK encountered an unknown error" in error.comment.body
+    assert "Encountered an unknown error" in error.comment.body
 
     # Clean my mess
     error.comment.delete()
@@ -49,7 +49,7 @@ def test_exception_to_github(github_client):
 
     # Test
     assert error.comment is not None
-    assert "Swagger to SDK encountered an unknown error: (Python bot)" in error.comment.body
+    assert "Encountered an unknown error: (Python bot)" in error.comment.body
 
     # Clean my mess
     error.comment.delete()
@@ -64,7 +64,7 @@ def test_exception_to_github(github_client):
 
     # Test
     assert error.comment is not None
-    assert "Swagger to SDK encountered a Subprocess error: (Python bot)" in error.comment.body
+    assert "Encountered a Subprocess error: (Python bot)" in error.comment.body
     assert "Error line 1" in error.comment.body
 
     # Clean my mess
@@ -79,7 +79,7 @@ def test_exception_to_github(github_client):
 
     # Test
     assert error.comment is not None
-    assert "Swagger to SDK encountered a Subprocess error: (Python bot)" in error.comment.body
+    assert "Encountered a Subprocess error: (Python bot)" in error.comment.body
     assert "no output" in error.comment.body
 
     # Clean my mess
@@ -101,7 +101,7 @@ def test_dashboard(github_client):
     assert after_size == initial_size + 1
 
     assert error.comment is not None
-    assert "Swagger to SDK encountered an unknown error" in error.comment.body
+    assert "Encountered an unknown error" in error.comment.body
 
     dashboard.create_comment("New text comment")
     after_size_2 = len(list(issue.get_comments()))
