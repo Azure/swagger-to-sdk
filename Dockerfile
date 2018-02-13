@@ -17,6 +17,9 @@ RUN add-apt-repository ppa:gophers/archive && \
 	apt-get install -y golang-1.9-go
 ENV PATH="/usr/lib/go-1.9/bin:${PATH}"
 
+# Go dep
+RUN go get -u github.com/golang/dep/cmd/dep
+
 # Python 3.6 (as default Python)
 RUN add-apt-repository ppa:jonathonf/python-3.6 && \
 	apt-get update && \
