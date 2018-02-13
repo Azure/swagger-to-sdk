@@ -9,7 +9,6 @@ from pathlib import Path
 
 from github import Github, UnknownObjectException
 
-from .markdown_support import extract_yaml
 from .autorest_tools import (
     autorest_latest_version_finder,
     autorest_bootstrap_version_finder,
@@ -57,54 +56,6 @@ def get_repo_tag_meta(meta_conf):
     raise ValueError("No repotag found or infered")
 
 
-def get_documents_in_markdown_file(markdown_filepath, base_dir=Path('.')):
-    """Get the documents inside this markdown file, relative to the repo root.
-
-    :params str markdown_filepath: The filepath, relative to the repo root or absolute.
-    :returns: An iterable of Swagger specs in this markdown file
-    :rtype: list<str>"""
-    _LOGGER.debug("Parsing markdown file %s", markdown_filepath)
-    def pathconvert(doc_path):
-        if doc_path.startswith('https'):
-            return doc_path.split('/master/')[1]
-        else:
-            return markdown_filepath.parent / doc_path
-    with (base_dir / markdown_filepath).open() as markdown_fd:
-        try:
-            raw_input_file = extract_yaml(markdown_fd.read())
-        except Exception as err:
-            _LOGGER.critical("Invalid Markdown file: %s (%s)", markdown_filepath, str(err))
-            return []
-        return [Path(pathconvert(d)) for d in raw_input_file]
-
-def find_markdown_files(base_dir=Path('.')):
-    """Find markdown file.
-
-    The path are relative to base_dir.
-    :rtype: pathlib.Path"""
-    return [v.relative_to(Path(base_dir)) for v in Path(base_dir).glob('**/*.md')]
-
-def swagger_index_from_markdown(base_dir=Path('.')):
-    """Build a reversed index of the markdown files in this repository.
-    :rtype: dict"""
-    return {
-        doc: markdown_file
-        for markdown_file in find_markdown_files(base_dir)
-        for doc in get_documents_in_markdown_file(markdown_file, base_dir)
-    }
-
-def get_context_tag_from_files_list(files_list):
-    """Get a list of context tag from a list of files.
-    Can take a Path or a str. Path will be match using posix.
-    """
-    contexts = set()
-    for file in files_list:
-        filename = file.as_posix() if hasattr(file, 'as_posix') else file
-        match = re.match(r"specification/(.*)/readme.md", filename, re.I)
-        if match:
-            contexts.add(match.groups()[0])
-    return contexts
-
 def get_context_tag_from_git_object(git_object):
     context_tags = set()
     files_list = get_files(git_object)
@@ -131,22 +82,26 @@ def get_context_tag_from_git_object(git_object):
     return context_tags        
         
 
-def get_swagger_files_in_git_object(git_object):
-    """Get the list of Swagger files in the given PR or commit"""
-    files_list = get_files(git_object)
-    return {Path(file.filename) for file in files_list
-            if re.match(r"specification/.*\.json", file.filename, re.I) or re.match(r"specification/.*/readme.md", file.filename, re.I)
-           }
-
-def get_swagger_project_files_in_git_object(pr_object, base_dir=Path('.')):
-    """List project files in the PR or commit, a project file being a Markdown file or a Swagger file."""
-    swagger_files_in_pr = get_swagger_files_in_git_object(pr_object)
-    swagger_index = swagger_index_from_markdown(base_dir)
-    swagger_files_in_pr |= {swagger_index[s]
-                            for s in swagger_files_in_pr
-                            if s in swagger_index}
-    return swagger_files_in_pr
-
+def get_readme_files_from_git_objects(git_object, base_dir=Path('.')):
+    """Get readme files from this PR.
+    Algo is to look for context, and then search for Readme inside this context.
+    """
+    readme_files = set()
+    context_tags = get_context_tag_from_git_object(git_object)
+    for context_tag in context_tags:
+        expected_folder = Path(base_dir) / Path("specification/{}".format(context_tag))
+        if not expected_folder.is_dir():
+            _LOGGER.warning("From context {} I didn't find folder {}".format(
+                context_tag,
+                expected_folder
+            ))
+            continue
+        for expected_readme in [l for l in expected_folder.iterdir() if l.is_file()]:
+            # Need to do a case-insensitive test.
+            match = re.match(r"readme.\w*.?md", expected_readme.name, re.I)
+            if match:
+                readme_files.add(expected_readme.relative_to(Path(base_dir)))
+    return readme_files
 
 def get_pr_object_from_travis(gh_token=None):
     """If Travis, return the Github object representing the PR.

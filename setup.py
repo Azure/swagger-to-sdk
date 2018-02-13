@@ -22,8 +22,6 @@ setup(
         "PyGithub>=1.36", # Can Merge PR after 1.36
         "GitPython",
         "requests",
-        "mistune",
-        "pyyaml",
         "cookiecutter",
         "wheel"
     ],

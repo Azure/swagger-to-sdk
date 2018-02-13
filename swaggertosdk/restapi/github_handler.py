@@ -17,7 +17,7 @@ from swaggertosdk.SwaggerToSdkCore import (
     get_input_paths,
     extract_conf_from_readmes,
     build_swaggertosdk_conf_from_json_readme,
-    get_swagger_project_files_in_git_object
+    get_readme_files_from_git_objects
 )
 from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
 from swaggertosdk.git_tools import (
@@ -72,7 +72,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
             manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_git_id) as sdk_folder:
 
-        swagger_files_in_commit = get_swagger_project_files_in_git_object(git_object, restapi_git_folder)
+        swagger_files_in_commit = get_readme_files_from_git_objects(git_object, restapi_git_folder)
         _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
 
         # SDK part

@@ -9,16 +9,12 @@ logging.basicConfig(level=logging.INFO)
 from github import Github
 
 from swaggertosdk.SwaggerToSdkCore import (
-    get_documents_in_markdown_file,
-    get_swagger_project_files_in_git_object,
-    get_swagger_files_in_git_object,
-    swagger_index_from_markdown,
     add_comment_to_initial_pr,
     get_pr_from_travis_commit_sha,
     build_file_content,
     extract_conf_from_readmes,
-    get_context_tag_from_files_list,
     get_context_tag_from_git_object,
+    get_readme_files_from_git_objects,
 )
 from swaggertosdk.github_tools import get_full_sdk_id
 from swaggertosdk.SwaggerToSdkNewCLI import (
@@ -40,10 +36,6 @@ def get_commit(github_client, repo_id, sha):
     repo = github_client.get_repo(repo_id)
     return repo.get_commit(sha)
 
-def test_extract_md_with_tag():
-    docs = get_documents_in_markdown_file(Path('files/readme_tag.md_test'), base_dir=Path(CWD))
-    assert len(docs) == 29
-
 
 def test_solve_relative_path():
     conf = {
@@ -56,26 +48,6 @@ def test_solve_relative_path():
     assert len(solved_conf) == 2
     assert solved_conf["test"] == "basicvalue"
     assert solved_conf["retest"] in  ["/tmp", "C:\\tmp", "D:\\tmp"] # Cross platform tests
-
-def test_get_swagger_project_files_in_git_object(github_client):
-    swaggers = get_swagger_project_files_in_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 1422), base_dir=Path(CWD))
-    for s in swaggers:
-        assert isinstance(s, Path)
-        assert s in [
-            Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'),
-            Path('files/readme.md')
-        ]
-    assert len(swaggers) == 2
-
-
-def test_get_context_tag_from_files_list():
-    files_list = {
-        Path('specification/cdn/resource-manager/readme.md'),
-        Path('specification/cdn/resource-manager/Microsoft.Cdn/stable/2015-06-01/cdn.json')
-    }
-    context_tags = get_context_tag_from_files_list(files_list)
-    assert len(context_tags) == 1
-    assert 'cdn/resource-manager' in context_tags
 
 def test_get_context_tag_from_git_object(github_client):
     context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2412))
@@ -98,41 +70,16 @@ def test_get_context_tag_from_git_object(github_client):
     context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2422))
     assert len(context_tags) == 1
     assert 'managementpartner/resource-manager' in context_tags
- 
-def test_swagger_index_from_markdown():
-    assert \
-        {
-            Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json'):
-                Path('files/readme.md'),
-        } == \
-        swagger_index_from_markdown(Path(CWD))
 
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2473))
+    assert len(context_tags) == 1
+    assert 'datafactory/resource-manager' in context_tags
 
-def test_get_git_files(github_client):
-    # Basic test, one Swagger file only (PR)
-    assert \
-        get_swagger_files_in_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 1422)) \
-        == \
-        {Path('specification/compute/resource-manager/Microsoft.Compute/2017-03-30/compute.json')}
-
-    # Basic test, one Readme file only (PR)
-    assert \
-        get_swagger_files_in_git_object(get_pr(github_client, 'lmazuel/azure-rest-api-specs', 12)) \
-        == \
-        {Path('specification/cdn/resource-manager/readme.md')}
-
-    # Basic test, one Swagger file only (commit)
-    assert \
-        get_swagger_files_in_git_object(get_commit(github_client, 'Azure/azure-rest-api-specs', 'ae25a0505f86349bbe92251dde34d70bfb6be78a')) \
-        == \
-        {Path('specification/cognitiveservices/data-plane/EntitySearch/v1.0/EntitySearch.json')}
-
-    # Should not find Swagger and not fails
-    assert \
-        get_swagger_files_in_git_object(get_pr(github_client, 'Azure/azure-sdk-for-python', 627)) \
-        == \
-        set()
-
+def test_get_readme_files_from_git_objects(github_client):
+    readme_files = get_readme_files_from_git_objects(get_pr(github_client, 'Azure/azure-rest-api-specs', 2473), base_dir=Path(CWD) / Path("files"))
+    assert len(readme_files) == 1
+    readme_file = readme_files.pop()
+    assert readme_file == Path("specification/datafactory/resource-manager/readme.md")
 
 def test_add_comment_to_pr(github_token):
     travis_mock_env = dict(os.environ)

@@ -19,7 +19,7 @@ from swaggertosdk.SwaggerToSdkCore import (
     get_input_paths,
     extract_conf_from_readmes,
     build_swaggertosdk_conf_from_json_readme,
-    get_swagger_project_files_in_git_object
+    get_readme_files_from_git_objects
 )
 from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
 from swaggertosdk.git_tools import (
