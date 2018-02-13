@@ -1,46 +1,34 @@
-from collections import namedtuple
 import logging
 import os
-import re
 from pathlib import Path
 import tempfile
-import traceback
 
-from github import Github
 from git import Repo, GitCommandError
 
-from swaggertosdk.build_sdk import generate as build_sdk
 from swaggertosdk.SwaggerToSdkCore import (
     CONFIG_FILE,
     read_config,
     DEFAULT_COMMIT_MESSAGE,
     get_input_paths,
     extract_conf_from_readmes,
-    build_swaggertosdk_conf_from_json_readme,
     get_readme_files_from_git_objects
 )
 from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
 from swaggertosdk.git_tools import (
     checkout_and_create_branch,
-    checkout_create_push_branch,
     do_commit,
 )
 from swaggertosdk.github_tools import (
     configure_user,
-    exception_to_github,
     manage_git_folder,
-    do_pr,
-    create_comment,
-    GithubLink
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-
 def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_names, *, fallback_base_branch_name="master", sdk_tag=None):
     """Generate SDK from a commit or a PR object.
-    
+
     git_object is the initial commit/PR from the RestAPI repo. restapi_git_id explains where to clone the repo.
     sdk_git_id explains where to push the commit.
     sdk_tag explains what is the tag used in the Readme for the swagger-to-sdk section. If not provided, use sdk_git_id.

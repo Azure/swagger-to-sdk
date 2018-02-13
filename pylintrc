@@ -1,0 +1,6 @@
+[MESSAGES CONTROL]
+# For all codes, run 'pylint --list-msgs' or go to 'https://pylint.readthedocs.io/en/latest/reference_guide/features.html'
+disable=missing-docstring
+
+[FORMAT]
+max-line-length=120

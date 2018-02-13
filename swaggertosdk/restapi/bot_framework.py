@@ -1,39 +1,13 @@
 from collections import namedtuple
-from contextlib import contextmanager
 from functools import lru_cache
 import logging
 import os
 import re
-from pathlib import Path
-import tempfile
-import traceback
 
 from github import Github
-from git import Repo, GitCommandError
 
-from swaggertosdk.build_sdk import generate as build_sdk
-from swaggertosdk.SwaggerToSdkCore import (
-    CONFIG_FILE,
-    read_config,
-    DEFAULT_COMMIT_MESSAGE,
-    get_input_paths,
-    extract_conf_from_readmes,
-    build_swaggertosdk_conf_from_json_readme,
-    get_readme_files_from_git_objects
-)
-from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
-from swaggertosdk.git_tools import (
-    checkout_and_create_branch,
-    checkout_create_push_branch,
-    do_commit,
-)
 from swaggertosdk.github_tools import (
-    configure_user,
     exception_to_github,
-    manage_git_folder,
-    do_pr,
-    create_comment,
-    GithubLink
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -89,7 +63,7 @@ class BotHandler:
             return {'message': 'I don\'t talk to myself, I\'m not schizo'}
         webhook_data = build_from_issue_comment(self.gh_token, body)
         return self.manage_comment(webhook_data)
-        
+
     def issues(self, body):
         if self._is_myself(body):
             return {'message': 'I don\'t talk to myself, I\'m not schizo'}
@@ -112,7 +86,7 @@ class BotHandler:
             split_text = command.lower().split()
             order = split_text.pop(0)
             if order == "help":
-                response = self.help_order(webhook_data.issue)
+                response = self.help_order()
             elif order in self.orders():
                 with exception_to_github(webhook_data.issue):  # Should do nothing, if handler is managing error correctly
                     response = getattr(self.handler, order)(webhook_data.issue, *split_text)
@@ -123,9 +97,9 @@ class BotHandler:
                 return {'message': response}
         return {'message': 'Nothing for me or exception'}
 
-    def help_order(self, issue):
+    def help_order(self):
         orders = ["This is what I can do:"]
-        for order in self.orders():
-            orders.append("- `{}`".format(order))
+        for orderstr in self.orders():
+            orders.append("- `{}`".format(orderstr))
         orders.append("- `help` : this help message")
         return "\n".join(orders)

@@ -2,5 +2,6 @@
     "python.unitTest.pyTestArgs": [
         "."
     ],
-    "python.unitTest.pyTestEnabled": true
+    "python.unitTest.pyTestEnabled": true,
+    "python.linting.pylintUseMinimalCheckers": false
 }

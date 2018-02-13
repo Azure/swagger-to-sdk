@@ -1,36 +1,23 @@
-from collections import namedtuple
-from contextlib import contextmanager
 import logging
 import os
-import re
 from pathlib import Path
 import tempfile
-import traceback
 
-from github import Github
-from git import Repo, GitCommandError
+from git import Repo
 
 from swaggertosdk.build_sdk import generate as build_sdk
 from swaggertosdk.SwaggerToSdkCore import (
     CONFIG_FILE,
     read_config,
-    DEFAULT_COMMIT_MESSAGE,
-    get_input_paths,
-    extract_conf_from_readmes,
     build_swaggertosdk_conf_from_json_readme,
 )
-from swaggertosdk.SwaggerToSdkNewCLI import build_libraries
 from swaggertosdk.git_tools import (
-    checkout_and_create_branch,
-    checkout_create_push_branch,
     do_commit,
 )
 from swaggertosdk.github_tools import (
     configure_user,
-    exception_to_github,
     manage_git_folder,
     do_pr,
-    create_comment,
     GithubLink
 )
 from .bot_framework import (
@@ -49,7 +36,7 @@ class GithubHandler:
     def rebase(self, issue, branch=None):
         if not issue.pull_request:
             return "Rebase is just supported in PR for now"
-        
+
         pr = issue.repository.get_pull(issue.number)
 
         branch_name = pr.head.ref
