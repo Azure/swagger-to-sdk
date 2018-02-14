@@ -12,3 +12,6 @@ build/
 
 # Coverage report
 **/.coverage
+.vscode/.ropeproject/*
+.cache
+.noseids
