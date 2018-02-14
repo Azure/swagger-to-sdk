@@ -5,6 +5,7 @@ import tempfile
 import pytest
 
 from git import Repo, GitCommandError
+from github import GithubException
 
 from swaggertosdk.github_tools import (
     exception_to_github,
@@ -17,7 +18,8 @@ from swaggertosdk.github_tools import (
     create_comment,
     GithubLink,
     DashboardCommentableObject,
-    DashboardComment
+    DashboardComment,
+    get_or_create_pull
 )
 
 
@@ -84,6 +86,16 @@ def test_exception_to_github(github_client):
 
     # Clean my mess
     error.comment.delete()
+
+def test_get_or_create_pull(github_client):
+    repo = github_client.get_repo("lmazuel/TestingRepo")
+
+    # b1 and b2 should exist and be the same
+    with pytest.raises(GithubException):
+        get_or_create_pull(repo, "Title", "Body", "b1", "b2")
+
+    prresult = get_or_create_pull(repo, "Title", "Body", "b1", "b2", none_if_no_commit=True)
+    assert prresult is None
 
 def test_dashboard(github_client):
     # Prepare

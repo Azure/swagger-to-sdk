@@ -123,11 +123,14 @@ def sync_fork(gh_token, github_repo_id, repo, push=True):
         msg = repo.git.push()
         _LOGGER.debug(msg)
 
-def get_or_create_pull(github_repo, title, body, head, base):
+def get_or_create_pull(github_repo, title, body, head, base, *, none_if_no_commit=False):
     """Try to create the PR. If the PR exists, try to find it instead. Raises otherwise.
 
     You should always use the complete head syntax "org:branch", since the syntax is required
     in case of listing.
+
+    if "none_if_no_commit" is set, return None instead of raising exception if the problem
+    is that head and base are the same.
     """
     try: # Try to create or get a PR
         return github_repo.create_pull(
@@ -143,6 +146,11 @@ def get_or_create_pull(github_repo, title, body, head, base):
                 head=head,
                 base=base
             ))[0]
+        elif none_if_no_commit and err.status == 422 and err.data['errors'][0].get('message', '').startswith('No commits between'):
+            _LOGGER.info('No PR possible since head %s and base %s are the same',
+                         head,
+                         base)
+            return None
         else:
             _LOGGER.warning("Unable to create PR:\n%s", err.data)
             raise
@@ -150,7 +158,6 @@ def get_or_create_pull(github_repo, title, body, head, base):
         response = traceback.format_exc()
         _LOGGER.warning("Unable to create PR:\n%s", response)
         raise
-    
 
 def clone_to_path(gh_token, folder, sdk_git_id, branch=None):
     """Clone the given repo_id to the folder.
