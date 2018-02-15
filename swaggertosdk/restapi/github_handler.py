@@ -194,9 +194,9 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                       to_remove=[SwaggerToSdkLabels.refused])
 
     #
-    # Extra work: if this was a context PR
+    # Extra work: if this was a context PR from a fork
     #
-    if len(context_tags) == 1:
+    if is_from_a_fork and len(context_tags) == 1:
         try:
             context_pr = get_or_create_pull(
                 sdk_repo,
