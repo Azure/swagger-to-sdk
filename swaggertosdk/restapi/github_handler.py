@@ -94,6 +94,15 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
         return
 
     #
+    # Decide if this PR will use a context branch
+    #
+    # A RestPR will have a context branch if:
+    # - This is from a fork. Local branch are considered of the context system.
+    # - There is one context only. Too much complicated to handle two context branches.
+    # - Base is master. If fork to a feature branch, keep that flow.
+    is_pushed_to_context_branch = is_from_a_fork and len(context_tags) == 1 and rest_pr.base.ref == _DEFAULT_REST_BRANCH
+
+    #
     # Compute the "head" of future SDK PR.
     #
     if is_from_a_fork:
@@ -115,8 +124,8 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
         sdk_pr_base = _SDK_PR_TEMPLATE.format(rest_pr.base.ref)
         sdk_checkout_bases.append(sdk_pr_base)
 
-    # In special case where I have one context and it's a fork, use context branch as base
-    if is_from_a_fork and len(context_tags) == 1:
+    # In special case where I use context branch
+    if is_pushed_to_context_branch:
         sdk_pr_base = _SDK_PR_TEMPLATE.format(context_tags[0])
         sdk_checkout_bases.insert(0, sdk_pr_base)
 
@@ -178,9 +187,9 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                       to_remove=[SwaggerToSdkLabels.refused])
 
     #
-    # Extra work: if this was a context PR from a fork
+    # Extra work: if this was a context branch
     #
-    if is_from_a_fork and len(context_tags) == 1:
+    if is_pushed_to_context_branch:
         try:
             context_pr = get_or_create_pull(
                 sdk_repo,
