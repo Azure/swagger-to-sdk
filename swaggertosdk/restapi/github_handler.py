@@ -68,7 +68,7 @@ def manage_labels(issue, to_add=None, to_remove=None):
     if not to_remove:
         to_remove = []
     for label_remove in to_remove:
-        safe_remove_label(issue, label_remove)
+        safe_remove_label(issue, get_or_create_label(issue.repository, label_remove))
     for label_add in to_add:
         try:
             issue.add_to_labels(get_or_create_label(issue.repository, label_add))
