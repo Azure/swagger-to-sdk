@@ -1,9 +1,7 @@
-from contextlib import contextmanager
-
 import pytest
 
 from swaggertosdk.restapi.bot_framework import BotHandler, order, build_from_issue_comment, build_from_issues
-    
+
 
 def test_webhook_data(github_client, github_token):
     repo = github_client.get_repo("lmazuel/TestingRepo")
@@ -38,6 +36,7 @@ def test_webhook_data(github_client, github_token):
             'login': "lmazuel"  # Who wrote the command?
         },
         'comment': {
+            'id': 365120206,
             'body': "@AutorestCI help"  # Message?
         }
     }
@@ -63,22 +62,20 @@ def test_bot_help(github_client, github_token):
     bot = BotHandler(BotHelp(), "AutorestCI", github_token)
 
     fake_webhook = {
-        'action': 'created',  # What is the comment state?
+        'action': 'opened',  # What is the comment state?
         'repository': {
             'full_name': issue.repository.full_name  # On what repo is this command?
         },
         'issue': {
-            'number': issue.number  # On what issue is this comment?
+            'number': issue.number,  # On what issue is this comment?
+            'body': "@AutorestCI help"  # Message?
         },
         'sender': {
             'login': "lmazuel"  # Who wrote the command?
         },
-        'comment': {
-            'body': "@AutorestCI help"  # Message?
-        }
     }
 
-    response = bot.issue_comment(fake_webhook)
+    response = bot.issues(fake_webhook)
     assert "this help message" in response["message"]
     assert "command1" in response["message"]
     assert "notacommand" not in response["message"]
@@ -104,22 +101,20 @@ def test_bot_basic_command(github_client, github_token):
     bot = BotHandler(BotCommand(), "AutorestCI", github_token)
 
     fake_webhook = {
-        'action': 'created',  # What is the comment state?
+        'action': 'opened',  # What is the comment state?
         'repository': {
             'full_name': issue.repository.full_name  # On what repo is this command?
         },
         'issue': {
-            'number': issue.number  # On what issue is this comment?
+            'number': issue.number,  # On what issue is this comment?
+            'body': "@AutorestCI command1 myparameter"  # Message?
         },
         'sender': {
             'login': "lmazuel"  # Who wrote the command?
         },
-        'comment': {
-            'body': "@AutorestCI command1 myparameter"  # Message?
-        }
     }
 
-    response = bot.issue_comment(fake_webhook)
+    response = bot.issues(fake_webhook)
     assert response["message"] == "I did something with myparameter"
 
     help_comment = list(issue.get_comments())[-1]
@@ -141,22 +136,20 @@ def test_bot_basic_failure(github_client, github_token):
     bot = BotHandler(BotCommand(), "AutorestCI", github_token)
 
     fake_webhook = {
-        'action': 'created',  # What is the comment state?
+        'action': 'opened',  # What is the comment state?
         'repository': {
             'full_name': issue.repository.full_name  # On what repo is this command?
         },
         'issue': {
-            'number': issue.number  # On what issue is this comment?
+            'number': issue.number,  # On what issue is this comment?
+            'body': "@AutorestCI command1 myparameter"  # Message?
         },
         'sender': {
             'login': "lmazuel"  # Who wrote the command?
         },
-        'comment': {
-            'body': "@AutorestCI command1 myparameter"  # Message?
-        }
     }
 
-    response = bot.issue_comment(fake_webhook)
+    response = bot.issues(fake_webhook)
     assert response['message'] == 'Nothing for me or exception'
 
     help_comment = list(issue.get_comments())[-1]
@@ -170,29 +163,27 @@ def test_bot_basic_failure(github_client, github_token):
 def test_bot_unknown_command(github_client, github_token):
     repo = github_client.get_repo("lmazuel/TestingRepo")
     issue = repo.get_issue(19)
-    
+
     class BotCommand:
         pass
 
     bot = BotHandler(BotCommand(), "AutorestCI", github_token)
 
     fake_webhook = {
-        'action': 'created',  # What is the comment state?
+        'action': 'opened',  # What is the comment state?
         'repository': {
             'full_name': issue.repository.full_name  # On what repo is this command?
         },
         'issue': {
-            'number': issue.number  # On what issue is this comment?
+            'number': issue.number,  # On what issue is this comment?
+            'body': "@AutorestCI command1 myparameter"  # Message?
         },
         'sender': {
             'login': "lmazuel"  # Who wrote the command?
         },
-        'comment': {
-            'body': "@AutorestCI command1 myparameter"  # Message?
-        }
     }
 
-    response = bot.issue_comment(fake_webhook)
+    response = bot.issues(fake_webhook)
     assert "I didn't understand your command" in response['message']
     assert "command1 myparameter" in response['message']
 

@@ -4,7 +4,7 @@ import logging
 import os
 import re
 
-from github import Github
+from github import Github, GithubException
 
 from swaggertosdk.github_tools import (
     exception_to_github,
@@ -19,7 +19,7 @@ def order(function):
 
 WebhookMetadata = namedtuple(
     'WebhookMetadata',
-    ['repo', 'issue', 'text']
+    ['repo', 'issue', 'text', 'comment']
 )
 
 def build_from_issue_comment(gh_token, body):
@@ -31,17 +31,19 @@ def build_from_issue_comment(gh_token, body):
         repo = github_con.get_repo(body['repository']['full_name'])
         issue = repo.get_issue(body['issue']['number'])
         text = body['comment']['body']
-        return WebhookMetadata(repo, issue, text)
+        comment = issue.get_comment(body['comment']['id'])
+        return WebhookMetadata(repo, issue, text, comment)
 
 def build_from_issues(gh_token, body):
     """Create a WebhookMetadata from an opening issue text.
     """
-    if body["action"] in ["opened"]:
+    if body["action"] in ["opened", "edited"]:
         github_con = Github(gh_token)
         repo = github_con.get_repo(body['repository']['full_name'])
         issue = repo.get_issue(body['issue']['number'])
         text = body['issue']['body']
-        return WebhookMetadata(repo, issue, text)
+        comment = issue  # It's where we update the comment: in the issue itself
+        return WebhookMetadata(repo, issue, text, comment)
 
 @lru_cache()
 def robot_name_from_env_variable():
@@ -73,7 +75,8 @@ class BotHandler:
     def orders(self):
         """Return method tagged "order" in the handler.
         """
-        return [order_cmd for order_cmd in dir(self.handler) if getattr(getattr(self.handler, order_cmd), "bot_order", False)]
+        return [order_cmd for order_cmd in dir(self.handler)
+                if getattr(getattr(self.handler, order_cmd), "bot_order", False)]
 
     def manage_comment(self, webhook_data):
         if webhook_data is None:
@@ -84,14 +87,22 @@ class BotHandler:
         if message:
             command = message.group(1)
             split_text = command.lower().split()
-            order = split_text.pop(0)
-            if order == "help":
+            orderstr = split_text.pop(0)
+            if orderstr == "help":
                 response = self.help_order()
-            elif order in self.orders():
-                with exception_to_github(webhook_data.issue):  # Should do nothing, if handler is managing error correctly
-                    response = getattr(self.handler, order)(webhook_data.issue, *split_text)
+            elif orderstr in self.orders():
+                try:  # Reaction is fun, but it's preview not prod.
+                      # Be careful, don't fail the command if we can't thumbs up...
+                    webhook_data.comment.create_reaction("+1")
+                except GithubException:
+                    pass
+                with exception_to_github(webhook_data.issue):  # Just in case
+                    response = getattr(self.handler, orderstr)(webhook_data.issue, *split_text)
             else:
-                response = "I didn't understand your command:\n```bash\n{}\n```\nin this context, sorry :(".format(command)
+                response = "I didn't understand your command:\n```bash\n{}\n```\nin this context, sorry :(\n".format(
+                    command
+                )
+                response += self.help_order()
             if response:
                 webhook_data.issue.create_comment(response)
                 return {'message': response}
