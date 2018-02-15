@@ -30,7 +30,7 @@ from ..github_tools import (
 )
 from . import app
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("swaggertosdk.restapi.github")
 _QUEUE = Queue(64)
 
 

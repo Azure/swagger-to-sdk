@@ -28,7 +28,7 @@ from swaggertosdk.github_tools import (
     DashboardCommentableObject,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("swaggertosdk.restapi.github_handler")
 
 # How many context tag I authorize in a PR to accept it
 _CONTEXT_TAG_LIMITS = 3

@@ -10,7 +10,7 @@ from swaggertosdk.github_tools import (
     exception_to_github,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("swaggertosdk.restapi.bot_framework")
 
 
 def order(function):

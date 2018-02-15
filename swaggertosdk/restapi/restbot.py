@@ -6,7 +6,7 @@ from github import Github
 from .bot_framework import order
 from .github_handler import rest_pr_management
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("swaggertosdk.restapi.restbot")
 
 class RestAPIRepoHandler:
     def __init__(self, sdkid, repotag, sdk_default_base):

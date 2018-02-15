@@ -24,7 +24,7 @@ from .bot_framework import (
     order
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger("swaggertosdk.restapi.sdkbot")
 
 
 class GithubHandler:
