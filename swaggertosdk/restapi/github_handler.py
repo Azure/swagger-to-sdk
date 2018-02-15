@@ -197,12 +197,12 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
         manage_labels(context_pr_as_issue, [SwaggerToSdkLabels.service_pr])
         # Update dashboar to talk about this PR
         if sdk_pr.merged:
-            msg = "The initial (PR)[{}] has been merged into your service PR:\n{}".format(
+            msg = "The initial [PR]({}) has been merged into your service PR:\n{}".format(
                 sdk_pr.html_url,
                 context_pr.html_url
             )
         else:
-            msg = "A (PR)[{}] has been created for you based on this PR content.\n\n".format(
+            msg = "A [PR]({}) has been created for you based on this PR content.\n\n".format(
                 sdk_pr.html_url
             )
             msg += "Once this PR will be merged, content will be added to your service PR:\n{}".format(
