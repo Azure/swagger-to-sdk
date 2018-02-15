@@ -4,7 +4,7 @@ import logging
 import os
 import re
 
-from github import Github, GithubException
+from github import Github, GithubException, UnknownObjectException
 
 from swaggertosdk.github_tools import (
     exception_to_github,
@@ -31,7 +31,11 @@ def build_from_issue_comment(gh_token, body):
         repo = github_con.get_repo(body['repository']['full_name'])
         issue = repo.get_issue(body['issue']['number'])
         text = body['comment']['body']
-        comment = issue.get_comment(body['comment']['id'])
+        try:
+            comment = issue.get_comment(body['comment']['id'])
+        except UnknownObjectException:
+            # If the comment has already disapeared, skip the command
+            return None
         return WebhookMetadata(repo, issue, text, comment)
 
 def build_from_issues(gh_token, body):
