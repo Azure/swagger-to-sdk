@@ -57,6 +57,14 @@ def get_repo_hexsha(git_folder):
     _LOGGER.info("Found REST API repo SHA1: %s", hexsha)
     return hexsha
 
+def checkout_with_fetch(git_folder, refspec, repository="origin"):
+    """Fetch the refspec, and checkout FETCH_HEAD.
+    Beware that you will ne in detached head mode.
+    """
+    _LOGGER.info("Trying to fetch and checkout %s", refspec)
+    repo = Repo(str(git_folder))
+    repo.git.fetch(repository, refspec)  # FETCH_HEAD should be set
+    repo.git.checkout("FETCH_HEAD")
 
 def clone_to_path(https_authenticated_url, folder, branch_or_commit=None):
     """Clone the given URL to the folder.

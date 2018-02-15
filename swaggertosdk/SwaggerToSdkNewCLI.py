@@ -191,7 +191,8 @@ def build_libraries(config, skip_callback, restapi_git_folder, sdk_repo, temp_di
 def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_names, *, fallback_base_branch_name="master", sdk_tag=None):
     """Generate SDK from a commit or a PR object.
 
-    git_object is the initial commit/PR from the RestAPI repo. restapi_git_id explains where to clone the repo.
+    git_object is the initial commit/PR from the RestAPI repo. If git_object is a PR, prefer to checkout Github PR magic branches.
+    restapi_git_id explains where to clone the repo.
     sdk_git_id explains where to push the commit.
     sdk_tag explains what is the tag used in the Readme for the swagger-to-sdk section. If not provided, use sdk_git_id.
     branch_name is the expected branch name in the SDK repo.
@@ -210,16 +211,18 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
     if sdk_tag is None:
         sdk_tag = sdk_git_id
 
-    try:
-        checkout_name = git_object.sha # Checkout the sha if commit obj
-    except AttributeError:
-        checkout_name = git_object.head.ref # Checkout the branch name if PR
+    try:  # Checkout the sha if commit obj
+        branched_rest_api_id = restapi_git_id+'@'+git_object.sha
+        pr_number = None
+    except (AttributeError, TypeError):  # This is a PR, don't clone the fork but "base" repo and PR magic branch
+        restapi_git_id = git_object.base.repo.full_name
+        pr_number = git_object.number
 
-    branched_rest_api_id = restapi_git_id+'@'+checkout_name
+    # Always clone SDK from fallback branch that is required to exist
     branched_sdk_git_id = sdk_git_id+'@'+fallback_base_branch_name
 
     with tempfile.TemporaryDirectory() as temp_dir, \
-            manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
+            manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_git_id) as sdk_folder:
 
         swagger_files_in_commit = get_readme_files_from_git_objects(git_object, restapi_git_folder)

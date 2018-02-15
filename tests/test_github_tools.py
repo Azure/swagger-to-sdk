@@ -213,6 +213,41 @@ def test_clone_path(github_token):
         if not finished:
             raise
 
+    finished = False # Authorize PermissionError on cleanup
+    # PR 2 must be open, or the test means nothing
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clone_to_path(github_token, temp_dir, "lmazuel/TestingRepo", pr_number=2)
+            assert (Path(temp_dir) / Path("README.md")).exists()
+
+            finished = True
+    except (PermissionError, FileNotFoundError):
+        if not finished:
+            raise
+
+    finished = False # Authorize PermissionError on cleanup
+    # PR 1 must be MERGED, or the test means nothing
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            clone_to_path(github_token, temp_dir, "lmazuel/TestingRepo", pr_number=1)
+            assert (Path(temp_dir) / Path("README.md")).exists()
+
+            finished = True
+    except (PermissionError, FileNotFoundError):
+        if not finished:
+            raise
+
+    finished = False # Authorize PermissionError on cleanup
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(GitCommandError):
+                clone_to_path(github_token, temp_dir, "lmazuel/TestingRepo", pr_number=123456789)
+
+            finished = True
+    except (PermissionError, FileNotFoundError):
+        if not finished:
+            raise
+
 def test_manage_git_folder(github_token):
     finished = False # Authorize PermissionError on cleanup
     try:
@@ -233,6 +268,21 @@ def test_manage_git_folder(github_token):
 
             assert (Path(rest_repo) / Path("README.md")).exists()
             assert "lmazuel-patch-1" in str(Repo(rest_repo).active_branch)
+
+            finished = True
+    except (PermissionError, FileNotFoundError):
+        if not finished:
+            raise
+
+    finished = False # Authorize PermissionError on cleanup
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir, \
+                    manage_git_folder(github_token, temp_dir, "lmazuel/TestingRepo", pr_number=1) as rest_repo:
+
+            assert (Path(rest_repo) / Path("README.md")).exists()
+            with pytest.raises(TypeError) as err:
+                Repo(rest_repo).active_branch
+            assert "HEAD is a detached symbolic reference" in str(err)
 
             finished = True
     except (PermissionError, FileNotFoundError):

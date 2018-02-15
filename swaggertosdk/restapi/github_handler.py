@@ -135,7 +135,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     generate_sdk_from_git_object(
         rest_pr,
         sdk_pr_head,
-        origin_repo_name,  # Needed to clone. Should be improved to use "pull/number/head"
+        None,  # We don't need repo id if it's a PR, infer from PR itself.
         sdk_repo.full_name,
         sdk_checkout_bases,
         fallback_base_branch_name=sdk_default_base,

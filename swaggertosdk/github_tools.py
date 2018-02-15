@@ -12,7 +12,10 @@ from urllib.parse import urlsplit, urlunsplit
 
 from github import Github, GithubException
 
-from .git_tools import clone_to_path as _git_clone_to_path
+from .git_tools import (
+    clone_to_path as _git_clone_to_path,
+    checkout_with_fetch
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -159,10 +162,16 @@ def get_or_create_pull(github_repo, title, body, head, base, *, none_if_no_commi
         _LOGGER.warning("Unable to create PR:\n%s", response)
         raise
 
-def clone_to_path(gh_token, folder, sdk_git_id, branch=None):
+def clone_to_path(gh_token, folder, sdk_git_id, branch_or_commit=None, *, pr_number=None):
     """Clone the given repo_id to the folder.
 
-    :param str branch: If specified, switch to this branch. Branch must exist.
+    If branch is specified, checkout this branch or commit.
+    If PR number is specified, don't checkout "branch", but instead the magic branches
+    pull/<id>/head or pull/<id>/merge from Github. "merge" is tried first, and fallback to "head".
+    Beware that pr_number implies detached head, and then no push is possible.
+
+    :param str branch_or_commit: If specified, switch to this branch/commit.
+    :param int pr_number: PR number.
     """
     _LOGGER.info("Clone SDK repository %s", sdk_git_id)
     url_parsing = urlsplit(sdk_git_id)
@@ -184,7 +193,15 @@ def clone_to_path(gh_token, folder, sdk_git_id, branch=None):
         credentials=credentials_part,
         sdk_git_id=sdk_git_id
     )
-    _git_clone_to_path(https_authenticated_url, folder, branch)
+    if not pr_number:
+        _git_clone_to_path(https_authenticated_url, folder, branch_or_commit)
+    else:
+        _git_clone_to_path(https_authenticated_url, folder)
+        try:
+            checkout_with_fetch(folder, "pull/{}/merge".format(pr_number))
+        except Exception:
+            pass  # Assume "merge" doesn't exist anymore, fetch "head"
+        checkout_with_fetch(folder, "pull/{}/head".format(pr_number))
 
 
 def do_pr(gh_token, sdk_git_id, sdk_pr_target_repo_id, branch_name, base_branch, pr_body=""):
@@ -232,8 +249,11 @@ def remove_readonly(func, path, _):
     func(path)
 
 @contextmanager
-def manage_git_folder(gh_token, temp_dir, git_id):
-    """Context manager to avoid readonly problem while cleanup the temp dir"""
+def manage_git_folder(gh_token, temp_dir, git_id, *, pr_number=None):
+    """Context manager to avoid readonly problem while cleanup the temp dir.
+
+    If PR number is given, use magic branches "pull" from Github.
+    """
     _LOGGER.debug("Git ID %s", git_id)
     if Path(git_id).exists():
         yield git_id
@@ -242,7 +262,7 @@ def manage_git_folder(gh_token, temp_dir, git_id):
     # Clone the specific branch
     split_git_id = git_id.split("@")
     branch = split_git_id[1] if len(split_git_id) > 1 else None
-    clone_to_path(gh_token, temp_dir, split_git_id[0], branch=branch)
+    clone_to_path(gh_token, temp_dir, split_git_id[0], branch_or_commit=branch, pr_number=pr_number)
     try:
         yield temp_dir
         # Pre-cleanup for Windows http://bugs.python.org/issue26660
