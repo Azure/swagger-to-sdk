@@ -224,6 +224,9 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
         swagger_files_in_commit = get_readme_files_from_git_objects(git_object, restapi_git_folder)
         _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
+        if not swagger_files_in_commit:
+            _LOGGER.info("No Readme in PR, quit")
+            return
 
         # SDK part
         sdk_repo = Repo(str(sdk_folder))
@@ -251,8 +254,10 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         _LOGGER.info('End of extraction')
 
         def skip_callback(project, local_conf):
-            if not swagger_files_in_commit:
-                return True
+            # We know "project" is based on Path in "swagger_files_in_commit"
+            if Path(project) in swagger_files_in_commit:
+                return False
+            # Might be a regular project
             markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
             if not (
                     markdown_relative_path in swagger_files_in_commit or
