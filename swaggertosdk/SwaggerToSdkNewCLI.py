@@ -215,7 +215,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         branched_rest_api_id = restapi_git_id+'@'+git_object.sha
         pr_number = None
     except (AttributeError, TypeError):  # This is a PR, don't clone the fork but "base" repo and PR magic branch
-        restapi_git_id = git_object.base.repo.full_name
+        branched_rest_api_id = git_object.base.repo.full_name
         pr_number = git_object.number
 
     # Always clone SDK from fallback branch that is required to exist
