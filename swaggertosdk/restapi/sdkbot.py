@@ -26,6 +26,17 @@ from .bot_framework import (
 _LOGGER = logging.getLogger("swaggertosdk.restapi.sdkbot")
 
 
+def build_installation_message(sdk_pr):
+    # Package starts with "azure" and is at the root of the repo
+    package_names = {f.filename.split('/')[0] for f in sdk_pr.get_files() if f.filename.startswith("azure")}
+
+    result = ["# Installation instruction"]
+    for package in package_names:
+        result.append("## Package {}".format(package))
+        result.append(pr_message_for_package(sdk_pr, package))
+    return "\n".join(result)
+
+
 def pr_message_for_package(sdk_pr, package_name):
     git_path = '"git+{}@{}#egg={}&subdirectory={}"'.format(
         sdk_pr.head.repo.html_url,
@@ -34,24 +45,28 @@ def pr_message_for_package(sdk_pr, package_name):
         package_name
     )
 
-    pip_install = 'pip install '+git_path
-    pip_wheel = 'pip wheel --no-deps '+git_path
+    pip_install = 'pip install {}'
+    pip_wheel = 'pip wheel --no-deps {}'
 
     pr_body = "You can install the package `{}` of this PR using the following command:\n\t`{}`".format(
         package_name,
-        pip_install
+        pip_install.format(git_path)
     )
 
     pr_body += "\n\n"
 
     pr_body += "You can build a wheel to distribute for test using the following command:\n\t`{}`".format(
-        pip_wheel
+        pip_wheel.format(git_path)
     )
 
     pr_body += "\n\n"
     pr_body += "If you have a local clone of this repository, you can also do:\n\n"
     pr_body += "- `git checkout {}`\n".format(sdk_pr.head.ref)
     pr_body += "- `pip install -e ./{}`\n".format(package_name)
+    pr_body += "\n\n"
+    pr_body += "Or build a wheel file to distribute for testing:\n\n"
+    pr_body += "- `git checkout {}`\n".format(sdk_pr.head.ref)
+    pr_body += "- `pip wheel --no-deps ./{}`\n".format(package_name)
     return pr_body
 
 
@@ -59,6 +74,14 @@ class GithubHandler:
     def __init__(self):
         # I need a token to do PR. Nothing to do with the bot.
         self.gh_token = os.environ["GH_TOKEN"]
+
+    @order
+    def install(self, issue):
+        if not issue.pull_request:
+            return "No installation instruction possible for issue. You need a PR for this command."
+
+        sdk_pr = issue.repository.get_pull(issue.number)
+        return build_installation_message(sdk_pr)
 
     @order
     def rebase(self, issue, branch=None):
