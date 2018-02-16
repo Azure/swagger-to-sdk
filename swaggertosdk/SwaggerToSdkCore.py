@@ -45,7 +45,7 @@ def build_file_content():
 def get_repo_tag_meta(meta_conf):
     repotag = meta_conf.get("repotag")
     if repotag:
-         return repotag
+        return repotag
     # Guess for now, "repotag" should be added everywhere
     if "go" in meta_conf["autorest_options"]:
         return "azure-sdk-for-go"
@@ -79,8 +79,8 @@ def get_context_tag_from_git_object(git_object):
             context_tags.add(match.groups()[0])
             continue
         # No context-tags
-    return context_tags        
-        
+    return context_tags
+
 
 def get_readme_files_from_git_objects(git_object, base_dir=Path('.')):
     """Get readme files from this PR.
