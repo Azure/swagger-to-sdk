@@ -5,7 +5,6 @@ import tempfile
 
 from git import Repo
 
-from swaggertosdk.build_sdk import generate as build_sdk
 from swaggertosdk.SwaggerToSdkCore import (
     CONFIG_FILE,
     read_config,
@@ -25,6 +24,35 @@ from .bot_framework import (
 )
 
 _LOGGER = logging.getLogger("swaggertosdk.restapi.sdkbot")
+
+
+def pr_message_for_package(sdk_pr, package_name):
+    git_path = '"git+{}@{}#egg={}&subdirectory={}"'.format(
+        sdk_pr.head.repo.html_url,
+        sdk_pr.head.ref,
+        package_name,
+        package_name
+    )
+
+    pip_install = 'pip install '+git_path
+    pip_wheel = 'pip wheel --no-deps '+git_path
+
+    pr_body = "You can install the package `{}` of this PR using the following command:\n\t`{}`".format(
+        package_name,
+        pip_install
+    )
+
+    pr_body += "\n\n"
+
+    pr_body += "You can build a wheel to distribute for test using the following command:\n\t`{}`".format(
+        pip_wheel
+    )
+
+    pr_body += "\n\n"
+    pr_body += "If you have a local clone of this repository, you can also do:\n\n"
+    pr_body += "- `git checkout {}`\n".format(sdk_pr.head.ref)
+    pr_body += "- `pip install -e ./{}`\n".format(package_name)
+    return pr_body
 
 
 class GithubHandler:
@@ -60,63 +88,6 @@ class GithubHandler:
             _LOGGER.debug(msg)
 
             return "Rebase done and pushed to the branch"
-
-    # @order
-    def generate(self, issue, readme_parameter):
-        # Do a start comment
-        new_comment = issue.create_comment("Working on generating this for you!!!")
-
-        # Clone SDK repo
-        sdk_git_id = issue.repository.full_name
-        pr_repo_id = sdk_git_id
-        base_branch_name = "master"
-
-        with tempfile.TemporaryDirectory() as temp_dir, \
-                manage_git_folder(self.gh_token, temp_dir + "/sdk", sdk_git_id) as sdk_folder:
-
-            sdk_conf = build_sdk(readme_parameter, sdk_folder)
-            branch_name = list(sdk_conf.keys()).pop()
-
-            new_comment.edit("Generated! Let's see if there is something to PR.")
-
-            sdk_repo = Repo(str(sdk_folder))
-            configure_user(self.gh_token, sdk_repo)
-            modification = do_commit(
-                sdk_repo,
-                "Generated from {}".format(issue.html_url),
-                branch_name,
-                ""
-            )
-            new_comment.delete()
-            if modification:
-                sdk_repo.git.push('origin', branch_name, set_upstream=True)
-                pip_command = 'pip install "git+{}@{}#egg={}&subdirectory={}"'.format(
-                    issue.repository.html_url,
-                    branch_name,
-                    sdk_conf[branch_name]["autorest_options"]["package-name"],
-                    sdk_conf[branch_name]["autorest_options"]["package-name"]
-                )
-                local_command = 'pip install -e ./{}'.format(sdk_conf[branch_name]["autorest_options"]["package-name"])
-
-                pr_body = """Generated from Issue: {}
-
-You can install the new package of this PR for testing using the following command:
-`{}`
-
-If you have a local clone of this repo in the folder /home/git/repo, please checkout this branch and do:
-`{}`
-""".format(issue.html_url, pip_command, local_command)
-
-                pr = do_pr(self.gh_token, sdk_git_id, pr_repo_id, branch_name, base_branch_name, pr_body)
-
-                answer = """
-Done! I created this branch and this PR:
-- {}
-- {}
-""".format(branch_name, pr.html_url, pip_command)
-                return answer
-            else:
-                return "Sorry, there is nothing to PR"
 
     @order
     def rebuild(self, issue, project_pattern):
