@@ -65,6 +65,7 @@ def checkout_with_fetch(git_folder, refspec, repository="origin"):
     repo = Repo(str(git_folder))
     repo.git.fetch(repository, refspec)  # FETCH_HEAD should be set
     repo.git.checkout("FETCH_HEAD")
+    _LOGGER.info("Fetch and checkout success for %s", refspec)
 
 def clone_to_path(https_authenticated_url, folder, branch_or_commit=None):
     """Clone the given URL to the folder.

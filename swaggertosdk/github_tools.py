@@ -199,6 +199,7 @@ def clone_to_path(gh_token, folder, sdk_git_id, branch_or_commit=None, *, pr_num
         _git_clone_to_path(https_authenticated_url, folder)
         try:
             checkout_with_fetch(folder, "pull/{}/merge".format(pr_number))
+            return
         except Exception:
             pass  # Assume "merge" doesn't exist anymore, fetch "head"
         checkout_with_fetch(folder, "pull/{}/head".format(pr_number))
