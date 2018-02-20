@@ -15,7 +15,7 @@ RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
 RUN add-apt-repository ppa:gophers/archive && \
 	apt-get update && \
 	apt-get install -y golang-1.9-go
-ENV PATH="/usr/lib/go-1.9/bin:~/go/bin:${PATH}"
+ENV PATH="/usr/lib/go-1.9/bin:/root/go/bin:${PATH}"
 
 # Go dep
 RUN go get -u github.com/golang/dep/cmd/dep
