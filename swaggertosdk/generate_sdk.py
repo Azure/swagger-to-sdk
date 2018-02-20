@@ -40,7 +40,7 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, repotag, config)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for project, local_conf in config["projects"].items():
+        for project, local_conf in config.get("projects", {}).items():
             if readme:
                 if str(readme) not in project:
                     _LOGGER.info("Skip project %s (readme was %s)", project, readme)
