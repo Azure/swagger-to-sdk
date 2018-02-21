@@ -72,8 +72,8 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     """
     # Extract some metadata as variables
     rest_repo = rest_pr.base.repo
-    origin_repo_name = rest_pr.head.repo.full_name
-    is_from_a_fork = origin_repo_name != rest_repo.full_name
+    # "repo" can be None if fork has been deleted.
+    is_from_a_fork = rest_pr.head.repo is None or rest_pr.head.repo.full_name != rest_repo.full_name
 
     # THE comment were we put everything
     dashboard = DashboardCommentableObject(rest_pr, "# Automation for {}".format(sdk_tag))
