@@ -119,7 +119,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     #
     sdk_checkout_bases = []
     if rest_pr.base.ref == _DEFAULT_REST_BRANCH:
-        sdk_pr_base = _DEFAULT_SDK_BRANCH
+        sdk_pr_base = sdk_default_base
     else:
         sdk_pr_base = _SDK_PR_TEMPLATE.format(rest_pr.base.ref)
         sdk_checkout_bases.append(sdk_pr_base)
@@ -196,7 +196,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                 title='[AutoPR] {}'.format("/".join(context_tags)),
                 body="Created to accumulate context: {}".format(context_tags[0]),
                 head=sdk_repo.owner.login+":"+sdk_pr_base,
-                base=_DEFAULT_SDK_BRANCH,
+                base=sdk_default_base,
             )
         except Exception as err:
             _LOGGER.warning("Unable to create context PR: %s", err)
