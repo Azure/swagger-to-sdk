@@ -134,8 +134,7 @@ class GithubHandler:
             msg = sdk_repo.git.push(force=True)
             _LOGGER.debug(msg)
 
-            return initial_answer
-
+            return "```shell\n"+initial_answer+"\n```"
 
     @order
     def rebuild(self, issue, project_pattern):
