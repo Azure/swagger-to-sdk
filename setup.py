@@ -33,7 +33,8 @@ setup(
     },
     entry_points = {
         'console_scripts': [
-            'generate_sdk=swaggertosdk.generate_sdk:generate_main'
+            'generate_sdk=swaggertosdk.generate_sdk:generate_main',
+            'generate_package=swaggertosdk.generate_package:generate_main',
         ],
     }    
 )
