@@ -71,9 +71,9 @@ def pr_message_for_package(sdk_pr, package_name):
 
 
 class GithubHandler:
-    def __init__(self):
+    def __init__(self, gh_token=None):
         # I need a token to do PR. Nothing to do with the bot.
-        self.gh_token = os.environ["GH_TOKEN"]
+        self.gh_token = os.environ["GH_TOKEN"] if not gh_token else gh_token
 
     @order
     def install(self, issue):
@@ -111,6 +111,31 @@ class GithubHandler:
             _LOGGER.debug(msg)
 
             return "Rebase done and pushed to the branch"
+
+    @order
+    def git(self, issue, *git_parameters):
+        if not issue.pull_request:
+            return "Rebase is just supported in PR for now"
+
+        pr_obj = issue.repository.get_pull(issue.number)
+
+        branch_name = pr_obj.head.ref
+        branched_sdk_id = pr_obj.head.repo.full_name+'@'+branch_name
+
+        with tempfile.TemporaryDirectory() as temp_dir, \
+                manage_git_folder(self.gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_id) as sdk_folder:
+
+            sdk_repo = Repo(str(sdk_folder))
+            configure_user(self.gh_token, sdk_repo)
+
+            command = getattr(sdk_repo.git, git_parameters[0])
+            initial_answer = command(*git_parameters[1:])
+            _LOGGER.debug(initial_answer)
+            msg = sdk_repo.git.push(force=True)
+            _LOGGER.debug(msg)
+
+            return initial_answer
+
 
     @order
     def rebuild(self, issue, project_pattern):
