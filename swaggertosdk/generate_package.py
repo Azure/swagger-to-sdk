@@ -36,7 +36,7 @@ def generate_main():
         main_logger.setLevel(logging.DEBUG if args.debug else logging.INFO)
 
     build_package_from_pr_number(
-        os.environ["GH_TOKEN"],
+        os.environ.get("GH_TOKEN", None),
         args.repo_id,
         args.pr_number,
         args.output_folder
