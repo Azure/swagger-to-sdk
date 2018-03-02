@@ -16,58 +16,14 @@ from swaggertosdk.git_tools import (
 from swaggertosdk.github_tools import (
     configure_user,
     manage_git_folder,
-    do_pr,
     GithubLink
 )
+from swaggertosdk.python_sdk_tools import build_installation_message
 from .bot_framework import (
     order
 )
 
 _LOGGER = logging.getLogger("swaggertosdk.restapi.sdkbot")
-
-
-def build_installation_message(sdk_pr):
-    # Package starts with "azure" and is at the root of the repo
-    package_names = {f.filename.split('/')[0] for f in sdk_pr.get_files() if f.filename.startswith("azure")}
-
-    result = ["# Installation instruction"]
-    for package in package_names:
-        result.append("## Package {}".format(package))
-        result.append(pr_message_for_package(sdk_pr, package))
-    return "\n".join(result)
-
-
-def pr_message_for_package(sdk_pr, package_name):
-    git_path = '"git+{}@{}#egg={}&subdirectory={}"'.format(
-        sdk_pr.head.repo.html_url,
-        sdk_pr.head.ref,
-        package_name,
-        package_name
-    )
-
-    pip_install = 'pip install {}'
-    pip_wheel = 'pip wheel --no-deps {}'
-
-    pr_body = "You can install the package `{}` of this PR using the following command:\n\t`{}`".format(
-        package_name,
-        pip_install.format(git_path)
-    )
-
-    pr_body += "\n\n"
-
-    pr_body += "You can build a wheel to distribute for test using the following command:\n\t`{}`".format(
-        pip_wheel.format(git_path)
-    )
-
-    pr_body += "\n\n"
-    pr_body += "If you have a local clone of this repository, you can also do:\n\n"
-    pr_body += "- `git checkout {}`\n".format(sdk_pr.head.ref)
-    pr_body += "- `pip install -e ./{}`\n".format(package_name)
-    pr_body += "\n\n"
-    pr_body += "Or build a wheel file to distribute for testing:\n\n"
-    pr_body += "- `git checkout {}`\n".format(sdk_pr.head.ref)
-    pr_body += "- `pip wheel --no-deps ./{}`\n".format(package_name)
-    return pr_body
 
 
 class GithubHandler:

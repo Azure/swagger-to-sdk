@@ -18,6 +18,9 @@ def generate_main():
     parser.add_argument('--repo', '-r',
                         dest='repo_id', default="Azure/azure-sdk-for-python",
                         help='Repo id. [default: %(default)s]')
+    parser.add_argument("--with-comment",
+                        dest="with_comment", action="store_true",
+                        help="Do a comment to the original PR with info.")
     parser.add_argument("-v", "--verbose",
                         dest="verbose", action="store_true",
                         help="Verbosity in INFO mode")
@@ -39,7 +42,8 @@ def generate_main():
         os.environ.get("GH_TOKEN", None),
         args.repo_id,
         args.pr_number,
-        args.output_folder
+        args.output_folder,
+        with_comment=args.with_comment
     )
 
 if __name__ == "__main__":
