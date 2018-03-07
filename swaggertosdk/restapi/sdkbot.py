@@ -68,7 +68,7 @@ class GithubHandler:
 
             return "Rebase done and pushed to the branch"
 
-    @order
+    #@order
     def git(self, issue, *git_parameters):
         if not issue.pull_request:
             return "Rebase is just supported in PR for now"
