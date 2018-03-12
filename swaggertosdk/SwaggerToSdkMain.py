@@ -43,6 +43,10 @@ def generate_sdk(gh_token, config_path, project_pattern, restapi_git_id,
                  sdk_git_id, pr_repo_id, message_template, base_branch_name, branch_name,
                  autorest_bin=None, push=True):
     """Main method of the the file"""
+    if gh_token:
+        _LOGGER.info("I received a Github token")
+    else:
+        _LOGGER.info("I didn't receive a Github token")
     sdk_git_id = get_full_sdk_id(gh_token, sdk_git_id)
 
     with tempfile.TemporaryDirectory() as temp_dir, \
