@@ -30,7 +30,7 @@ def checkout_create_push_branch(repo, name):
         _LOGGER.info("Checkout %s was impossible (branch does not exist). Creating it and push it.", name)
         checkout_and_create_branch(repo, name)
         repo.git.push('origin', name, set_upstream=True)
-    
+
 
 def do_commit(repo, message_template, branch_name, hexsha):
     "Do a commit if modified/untracked files"
@@ -81,3 +81,10 @@ def clone_to_path(https_authenticated_url, folder, branch_or_commit=None):
         repo.git.checkout(branch_or_commit)
 
     _LOGGER.info("Clone success")
+
+def get_files_in_commit(git_folder, commit_id="HEAD"):
+    """List of files in HEAD commit.
+    """
+    repo = Repo(str(git_folder))
+    output = repo.git.diff("--name-only", commit_id+"^", commit_id)
+    return output.splitlines()
