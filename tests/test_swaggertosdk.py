@@ -4,19 +4,13 @@ import os.path
 import logging
 import tempfile
 from pathlib import Path
-logging.basicConfig(level=logging.INFO)
-
-from github import Github
 
 from swaggertosdk.SwaggerToSdkCore import (
-    add_comment_to_initial_pr,
-    get_pr_from_travis_commit_sha,
     build_file_content,
     extract_conf_from_readmes,
     get_context_tag_from_git_object,
     get_readme_files_from_git_objects,
 )
-from swaggertosdk.github_tools import get_full_sdk_id
 from swaggertosdk.SwaggerToSdkNewCLI import (
     solve_relative_path,
     get_input_paths,
@@ -25,6 +19,8 @@ from swaggertosdk.SwaggerToSdkNewCLI import (
     write_build_file,
     move_autorest_files
 )
+
+logging.basicConfig(level=logging.INFO)
 
 CWD = os.path.dirname(os.path.realpath(__file__))
 
@@ -42,7 +38,7 @@ def test_solve_relative_path():
         "test": "basicvalue",
         "sdkrel:retest": "."
     }
-    
+
     solved_conf = solve_relative_path(conf, "/tmp")
     print(solved_conf)
     assert len(solved_conf) == 2
@@ -80,39 +76,6 @@ def test_get_readme_files_from_git_objects(github_client):
     assert len(readme_files) == 1
     readme_file = readme_files.pop()
     assert readme_file == Path("specification/datafactory/resource-manager/readme.md")
-
-def test_add_comment_to_pr(github_token):
-    travis_mock_env = dict(os.environ)
-    travis_mock_env['TRAVIS'] = 'true'
-    travis_mock_env['TRAVIS_REPO_SLUG'] = 'lmazuel/TestingRepo'
-    travis_mock_env['TRAVIS_COMMIT'] = 'dd82f65f1b6314b18609b8572464b6d328ea70d4'
-    travis_mock_env['TRAVIS_PULL_REQUEST'] = 'false'
-
-    with unittest.mock.patch.dict('os.environ', travis_mock_env):
-        assert add_comment_to_initial_pr(github_token, 'My comment')
-
-    del travis_mock_env['TRAVIS_COMMIT']
-    travis_mock_env['TRAVIS_PULL_REQUEST'] = '1'
-
-    with unittest.mock.patch.dict('os.environ', travis_mock_env):
-        assert add_comment_to_initial_pr(github_token, 'My comment')
-
-def test_get_pr_from_travis_commit_sha(github_token):
-    travis_mock_env = dict(os.environ)
-    travis_mock_env['TRAVIS'] = 'true'
-    travis_mock_env['TRAVIS_REPO_SLUG'] = 'Azure/azure-sdk-for-python'
-    travis_mock_env['TRAVIS_COMMIT'] = '497955507bc152c444bd1785f34cafefc7e4e8d9'
-
-    with unittest.mock.patch.dict('os.environ', travis_mock_env):
-        pr_obj = get_pr_from_travis_commit_sha(github_token)
-    assert pr_obj is not None
-    assert pr_obj.number == 568
-
-    travis_mock_env['TRAVIS_COMMIT'] = 'c290e668f17b45be6619f9133c0f15af19144280'
-    with unittest.mock.patch.dict('os.environ', travis_mock_env):
-        pr_obj = get_pr_from_travis_commit_sha(github_token)
-    assert pr_obj is None
-
 
 def test_get_input_path():
     main, opt = get_input_paths(
@@ -266,7 +229,7 @@ def test_move_autorest_files():
         move_autorest_files(
             generated,
             output,
-            {'generated_relative_base_directory': '*side'}, 
+            {'generated_relative_base_directory': '*side'},
             {
                 'output_dir': '.'
             }

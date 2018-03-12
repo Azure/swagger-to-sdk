@@ -23,14 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CONFIG_FILE = 'swagger_to_sdk_config.json'
 
-DEFAULT_BRANCH_NAME = 'autorest'
-DEFAULT_TRAVIS_PR_BRANCH_NAME = 'RestAPI-PR{number}'
-DEFAULT_TRAVIS_BRANCH_NAME = 'RestAPI-{branch}'
 DEFAULT_COMMIT_MESSAGE = 'Generated from {hexsha}'
-
-
-def is_travis():
-    return os.environ.get('TRAVIS') == 'true'
 
 
 def build_file_content():
@@ -104,122 +97,6 @@ def get_readme_files_from_git_objects(git_object, base_dir=Path('.')):
             if match:
                 readme_files.add(expected_readme.relative_to(Path(base_dir)))
     return readme_files
-
-def get_pr_object_from_travis(gh_token=None):
-    """If Travis, return the Github object representing the PR.
-       If result is None, is not Travis.
-       The GH token is optional if the repo is public.
-    """
-    if not is_travis():
-        return
-    pr_number = os.environ['TRAVIS_PULL_REQUEST']
-    if pr_number == 'false':
-        _LOGGER.info("This build don't come from a PR")
-        return
-    github_con = Github(gh_token)
-    github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
-
-    try:
-        return github_repo.get_pull(int(pr_number))
-    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
-        pass
-
-
-def get_commit_object_from_travis(gh_token=None):
-    """If Travis, return the Github object representing the current commit.
-       If result is None, is not Travis.
-       The GH token is optional if the repo is public.
-    """
-    if not is_travis():
-        return
-    _LOGGER.warning("Should improved using TRAVIS_COMMIT_RANGE: {}".format(os.environ['TRAVIS_COMMIT_RANGE']))
-    commit_sha = os.environ['TRAVIS_COMMIT'] 
-    github_con = Github(gh_token)
-    github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
-
-    try:
-        return github_repo.get_commit(commit_sha)
-    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
-        _LOGGER.critical("Unable to get commit {}".format(commit_sha))
-
-
-def get_pr_from_travis_commit_sha(gh_token=None):
-    """Try to determine the initial PR using #<number> in the current commit comment.
-    Will check if the found number is really a merged PR.
-    The GH token is optional if the repo is public."""
-    if not is_travis():
-        return
-    github_con = Github(gh_token)
-    github_repo = github_con.get_repo(os.environ['TRAVIS_REPO_SLUG'])
-
-    try:
-        local_commit = github_repo.get_commit(os.environ['TRAVIS_COMMIT'])
-    except UnknownObjectException: # Likely Travis doesn't lie, the Token does not have enough permissions
-        _LOGGER.critical("Unable to get commit {}".format(os.environ['TRAVIS_COMMIT']))
-        return
-
-    commit_message = local_commit.commit.message
-    issues_in_message = re.findall('#([\\d]+)', commit_message)
-
-    issue_object = None
-    for issue in issues_in_message:
-        try:
-            _LOGGER.info('Check if %s is a PR', issue)
-            issue_object = github_repo.get_pull(int(issue))
-            if not issue_object.is_merged():
-                continue
-            break
-        except Exception:
-            pass
-    if not issue_object:
-        _LOGGER.warning('Was not able to found PR commit message')
-    return issue_object
-
-def get_initial_pr(gh_token=None):
-    """Try to deduce the initial PR of the current repo state.
-    Use Travis env variable first, try with commit regexp otherwise.
-    gh_token could be None for public repo.
-
-    :param str gh_token: A Github token. Useful only if the repo is private.
-    :return: A PR object if found, None otherwise
-    :rtype: github.PullRequest.PullRequest
-    """
-    return get_pr_object_from_travis(gh_token) or \
-        get_pr_from_travis_commit_sha(gh_token)
-
-
-def compute_branch_name(branch_name, gh_token=None):
-    """Compute the branch name depended on Travis, default or not"""
-    if branch_name:
-        return branch_name
-    if not is_travis():
-        return DEFAULT_BRANCH_NAME
-    _LOGGER.info("Travis detected")
-    pr_object = get_initial_pr(gh_token)
-    if not pr_object:
-        return DEFAULT_TRAVIS_BRANCH_NAME.format(branch=os.environ['TRAVIS_BRANCH'])
-    return DEFAULT_TRAVIS_PR_BRANCH_NAME.format(number=pr_object.number)
-
-
-def compute_pr_comment_with_sdk_pr(comment, sdk_fork_id, branch_name):
-    travis_string = "[![Build Status]"\
-                        "(https://travis-ci.org/{fork_repo_id}.svg?branch={branch_name})]"\
-                        "(https://travis-ci.org/{fork_repo_id})"
-    travis_string = travis_string.format(branch_name=branch_name,
-                                         fork_repo_id=sdk_fork_id)
-    return travis_string+' '+comment
-
-
-def add_comment_to_initial_pr(gh_token, comment):
-    """Add a comment to the initial PR.
-    :returns: True is comment added, False if PR not found"""
-    if not gh_token:
-        return False
-    initial_pr = get_initial_pr(gh_token)
-    if not initial_pr:
-        return False
-    initial_pr.create_issue_comment(comment)
-    return True
 
 
 def read_config(sdk_git_folder, config_file):
