@@ -14,7 +14,7 @@ from .SwaggerToSdkCore import (
     DEFAULT_COMMIT_MESSAGE,
     get_input_paths,
     extract_conf_from_readmes,
-    get_readme_files_from_git_objects,
+    get_readme_files_from_git_object,
     build_file_content,
     solve_relative_path,
 )
@@ -74,7 +74,7 @@ def delete_extra_files(sdk_root, global_conf, local_conf):
 def move_autorest_files(client_generated_path, sdk_root, global_conf, local_conf):
     """Update data from generated to final folder.
 
-    This is one only if output_dir is set, otherwise it's considered generated in place 
+    This is one only if output_dir is set, otherwise it's considered generated in place
     and does not required moving
     """
     dest = local_conf.get('output_dir', None)
@@ -225,7 +225,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
             manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_git_id) as sdk_folder:
 
-        swagger_files_in_commit = get_readme_files_from_git_objects(git_object, restapi_git_folder)
+        swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)
         _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
         if not swagger_files_in_commit:
             _LOGGER.info("No Readme in PR, quit")

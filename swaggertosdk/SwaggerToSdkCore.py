@@ -52,10 +52,14 @@ def get_repo_tag_meta(meta_conf):
 
 
 def get_context_tag_from_git_object(git_object):
+    files_list = [file.filename for file in get_files(git_object)]
+    return get_context_tag_from_file_list(files_list)
+
+
+def get_context_tag_from_file_list(files_list):
     context_tags = set()
-    files_list = get_files(git_object)
-    for file in files_list:
-        filepath = Path(file.filename)
+    for filename in files_list:
+        filepath = Path(filename)
         filename = filepath.as_posix()
         # Match if RP name
         match = re.match(r"specification/(.*)/Microsoft.\w*/(stable|preview)/", filename, re.I)
@@ -77,12 +81,17 @@ def get_context_tag_from_git_object(git_object):
     return context_tags
 
 
-def get_readme_files_from_git_objects(git_object, base_dir=Path('.')):
+def get_readme_files_from_git_object(git_object, base_dir=Path('.')):
+    files_list = [file.filename for file in get_files(git_object)]
+    return get_readme_files_from_file_list(files_list, base_dir)
+
+
+def get_readme_files_from_file_list(files_list, base_dir=Path('.')):
     """Get readme files from this PR.
     Algo is to look for context, and then search for Readme inside this context.
     """
     readme_files = set()
-    context_tags = get_context_tag_from_git_object(git_object)
+    context_tags = get_context_tag_from_file_list(files_list)
     for context_tag in context_tags:
         expected_folder = Path(base_dir) / Path("specification/{}".format(context_tag))
         if not expected_folder.is_dir():

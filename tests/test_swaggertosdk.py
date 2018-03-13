@@ -9,7 +9,7 @@ from swaggertosdk.SwaggerToSdkCore import (
     build_file_content,
     extract_conf_from_readmes,
     get_context_tag_from_git_object,
-    get_readme_files_from_git_objects,
+    get_readme_files_from_git_object,
 )
 from swaggertosdk.SwaggerToSdkNewCLI import (
     solve_relative_path,
@@ -71,8 +71,8 @@ def test_get_context_tag_from_git_object(github_client):
     assert len(context_tags) == 1
     assert 'datafactory/resource-manager' in context_tags
 
-def test_get_readme_files_from_git_objects(github_client):
-    readme_files = get_readme_files_from_git_objects(get_pr(github_client, 'Azure/azure-rest-api-specs', 2473), base_dir=Path(CWD) / Path("files"))
+def test_get_readme_files_from_git_object(github_client):
+    readme_files = get_readme_files_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2473), base_dir=Path(CWD) / Path("files"))
     assert len(readme_files) == 1
     readme_file = readme_files.pop()
     assert readme_file == Path("specification/datafactory/resource-manager/readme.md")

@@ -12,6 +12,7 @@ from .SwaggerToSdkCore import (
     read_config,
     extract_conf_from_readmes,
     get_input_paths,
+    get_readme_files_from_file_list
 )
 from .github_tools import (
     manage_git_folder,
@@ -43,6 +44,8 @@ def generate_sdk(config_path,
 
         swagger_files_in_pr = get_files_in_commit(restapi_git_folder)
         _LOGGER.info("Files in PR: %s ", swagger_files_in_pr)
+        swagger_files_in_pr = get_readme_files_from_file_list(swagger_files_in_pr, restapi_git_folder)
+        _LOGGER.info("Readmes in PR: %s ", swagger_files_in_pr)
 
         # Look for configuration in Readme
         extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config)
