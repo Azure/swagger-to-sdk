@@ -167,14 +167,19 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     # Manage labels/state on this SDK PR.
     #
     sdk_pr_as_issue = sdk_repo.get_issue(sdk_pr.number)
+    sdk_pr_merged = False
     if rest_pr.closed_at:  # If there is a date, this is closed
         if rest_pr.merged:
             manage_labels(sdk_pr_as_issue,
                           to_add=[SwaggerToSdkLabels.merged],
                           to_remove=[SwaggerToSdkLabels.in_progress])
-            if len(context_tags) == 1 and sdk_pr.mergeable:
-                # Merge "single context PRs" automatically
-                sdk_pr.merge(merge_method="squash")
+            if len(context_tags) == 1:
+                try:
+                    # Merge "single context PRs" automatically
+                    sdk_pr.merge(merge_method="squash")
+                    sdk_pr_merged = True
+                except Exception as err:
+                    _LOGGER.warning("Was unable to merge: %s", err)
         else:
             manage_labels(sdk_pr_as_issue,
                           to_add=[SwaggerToSdkLabels.refused],
@@ -204,6 +209,9 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
         # We got the context PR!
         context_pr_as_issue = sdk_repo.get_issue(context_pr.number)
         manage_labels(context_pr_as_issue, [SwaggerToSdkLabels.service_pr])
+        # Put a link into the SDK single PR
+        if sdk_pr_merged:
+            sdk_pr.create_issue_comment("This PR has been merged into {}".format(context_pr.html_url))
         # Update dashboar to talk about this PR
         if sdk_pr.merged:
             msg = "The initial [PR]({}) has been merged into your service PR:\n{}".format(
