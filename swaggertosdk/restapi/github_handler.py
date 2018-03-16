@@ -1,5 +1,8 @@
 from enum import Enum
 import logging
+import os
+from pathlib import Path
+import tempfile
 
 from github import UnknownObjectException, GithubException
 
@@ -10,7 +13,11 @@ from swaggertosdk.SwaggerToSdkNewCLI import generate_sdk_from_git_object
 from swaggertosdk.github_tools import (
     get_or_create_pull,
     DashboardCommentableObject,
+    manage_git_folder,
+    configure_user,
 )
+
+from git import Repo
 
 _LOGGER = logging.getLogger("swaggertosdk.restapi.github_handler")
 
@@ -226,3 +233,49 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                 context_pr.html_url
             )
         dashboard.create_comment(msg)
+
+def clean_sdk_pr(rest_pr, sdk_repo):
+    """Look for the SDK pr created by this RestPR and wipe it.
+    """
+    # Extract some metadata as variables
+    rest_repo = rest_pr.base.repo
+    # "repo" can be None if fork has been deleted.
+    is_from_a_fork = rest_pr.head.repo is None or rest_pr.head.repo.full_name != rest_repo.full_name
+
+    #
+    # Compute the "head" of future SDK PR.
+    #
+    if is_from_a_fork:
+        sdk_pr_head = _SDK_PR_TEMPLATE.format(rest_pr.number)
+    else:
+        sdk_pr_head = _SDK_PR_TEMPLATE.format(rest_pr.head.ref)
+
+    #
+    # Close all PRs from this branch
+    #
+    sdk_prs = list(sdk_repo.get_pulls(
+        head=sdk_repo.owner.login+":"+sdk_pr_head,
+    ))
+    for sdk_pr in sdk_prs:
+        sdk_pr.edit(state="closed")
+        break
+    else:
+        return "Didn't find the SDK PR"
+
+    #
+    # Delete the branch. I need to clone the 
+    #
+    gh_token = os.environ["GH_TOKEN"]
+    upstream_url = 'https://github.com/{}.git'.format(sdk_pr.head.repo.full_name)
+    with tempfile.TemporaryDirectory() as temp_dir, \
+            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_repo.full_name) as sdk_folder:
+
+        sdk_repo = Repo(str(sdk_folder))
+        configure_user(gh_token, sdk_repo)
+
+        upstream = sdk_repo.create_remote('upstream', url=upstream_url)
+        upstream.fetch()
+        msg = upstream.push(":"+sdk_pr_head)  # old style delete
+
+        _LOGGER.debug(msg)
+    
