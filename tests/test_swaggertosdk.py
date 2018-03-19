@@ -71,6 +71,10 @@ def test_get_context_tag_from_git_object(github_client):
     assert len(context_tags) == 1
     assert 'datafactory/resource-manager' in context_tags
 
+    context_tags = get_context_tag_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2658))
+    assert len(context_tags) == 1
+    assert 'applicationinsights/resource-manager' in context_tags
+
 def test_get_readme_files_from_git_object(github_client):
     readme_files = get_readme_files_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 2473), base_dir=Path(CWD) / Path("files"))
     assert len(readme_files) == 1

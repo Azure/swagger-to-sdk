@@ -61,6 +61,9 @@ def get_context_tag_from_file_list(files_list):
     for filename in files_list:
         filepath = Path(filename)
         filename = filepath.as_posix()
+        if "/examples/" in filename:
+            # Do not compute context for example that are not used in SDK
+            continue
         # Match if RP name
         match = re.match(r"specification/(.*)/Microsoft.\w*/(stable|preview)/", filename, re.I)
         if match:
