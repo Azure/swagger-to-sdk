@@ -15,6 +15,7 @@ from swaggertosdk.github_tools import (
     DashboardCommentableObject,
     manage_git_folder,
     configure_user,
+    user_from_token
 )
 
 from git import Repo
@@ -266,7 +267,15 @@ def clean_sdk_pr(rest_pr, sdk_repo):
     # Delete the branch. I need to clone the 
     #
     gh_token = os.environ["GH_TOKEN"]
-    upstream_url = 'https://github.com/{}.git'.format(sdk_pr.head.repo.full_name)
+    login = user_from_token(gh_token).login
+    credentials_part = '{user}:{token}@'.format(
+        user=login,
+        token=gh_token
+    )
+    upstream_url = 'https://{credentials}github.com/{sdk_git_id}.git'.format(
+        credentials=credentials_part,
+        sdk_git_id=sdk_pr.head.repo.full_name
+    )
     with tempfile.TemporaryDirectory() as temp_dir, \
             manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_repo.full_name) as sdk_folder:
 
