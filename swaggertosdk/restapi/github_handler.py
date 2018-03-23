@@ -26,7 +26,8 @@ _LOGGER = logging.getLogger("swaggertosdk.restapi.github_handler")
 _CONTEXT_TAG_LIMITS = 3
 
 # SDK pr branch prefix
-_SDK_PR_TEMPLATE = "restapi_auto_{}"
+_SDK_PR_PREFIX = "restapi_auto_"
+_SDK_PR_TEMPLATE = _SDK_PR_PREFIX+"{}"
 
 # Default RestAPI branch
 _DEFAULT_REST_BRANCH = "master"
@@ -181,7 +182,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
             manage_labels(sdk_pr_as_issue,
                           to_add=[SwaggerToSdkLabels.merged],
                           to_remove=[SwaggerToSdkLabels.in_progress])
-            if len(context_tags) == 1:
+            if sdk_pr.base.ref.startswith(_SDK_PR_PREFIX):
                 try:
                     # Merge "single context PRs" automatically
                     sdk_pr.merge(merge_method="squash")
