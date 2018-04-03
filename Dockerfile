@@ -36,7 +36,7 @@ WORKDIR /opt
 RUN npm install dotnet-2.0.0 
  
 # Autorest 
-RUN npm install autorest@preview
+RUN npm install autorest@latest
 RUN ln -s /opt/node_modules/.bin/autorest /usr/local/bin
  
 # ensure autorest minimum version of the modeler
