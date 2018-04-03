@@ -9,48 +9,7 @@ This is Python 3.6 only.
 
 This works is still in progress and move fast. We'll do our best to keep this page up-to-date.
 
-# Configuration of the script
-
-```bash
-usage: SwaggerToSdk.py [-h] [--rest-folder RESTAPI_GIT_FOLDER]
-                       [--pr-repo-id PR_REPO_ID] [--message MESSAGE]
-                       [--project PROJECT] [--base-branch BASE_BRANCH]
-                       [--branch BRANCH] [--config CONFIG_PATH]
-                       [--autorest AUTOREST_DIR] [-v] [--debug]
-                       sdk_git_id
-
-Build SDK using Autorest and push to Github. The GH_TOKEN environment variable needs to be set to act on Github.
-
-positional arguments:
-  sdk_git_id            The SDK Github id. If a simple string, consider it belongs to the GH_TOKEN owner repo. Otherwise, you can use the syntax username/repoid
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --rest-folder RESTAPI_GIT_FOLDER, -r RESTAPI_GIT_FOLDER
-                        Rest API git folder. [default: .]
-  --pr-repo-id PR_REPO_ID
-                        PR repo id. If not provided, no PR is done
-  --message MESSAGE, -m MESSAGE
-                        Force commit message. {hexsha} will be the current REST SHA1 [default: Generated from {hexsha}]
-  --project PROJECT, -p PROJECT
-                        Select a specific project. Do all by default. You can use a substring for several projects.
-  --base-branch BASE_BRANCH, -o BASE_BRANCH
-                        The base branch from where create the new branch and where to do the final PR. [default: master]
-  --branch BRANCH, -b BRANCH
-                        The SDK branch to commit. Default if not Travis: autorest. If Travis is detected, see epilog for details
-  --config CONFIG_PATH, -c CONFIG_PATH
-                        The JSON configuration format path [default: swagger_to_sdk_config.json]
-  --autorest AUTOREST_DIR
-                        Force the Autorest to be executed. Must be a directory containing Autorest.exe
-  -v, --verbose         Verbosity in INFO mode
-  --debug               Verbosity in DEBUG mode
-
-The script activates this additional behaviour if Travis is detected:
- --branch is setted by default to "RestAPI-PR{number}" if triggered by a PR, "RestAPI-{branch}" otherwise
- Only the files inside the PR are considered. If the PR is NOT detected, all files are used.
-```
-
-# Configuration file swagger_to_sdk.json, version 0.2.0 (new cli autorest)
+# Configuration file swagger_to_sdk.json
 
 This is a configuration which MUST be at the root of the repository you wants to generate.
 
@@ -65,6 +24,12 @@ This is a configuration which MUST be at the root of the repository you wants to
       "azure-arm": true,
       "sdkrel:python-sdks-folder": "."
     },
+    "envs": {
+      "sdkrel:SCRIPTPATH": "./scripts"
+    },    
+    "advanced_options": {
+      "clone_dir": "./src/github.com/Azure/azure-sdk-for-go"
+    },    
     "wrapper_filesOrDirs": [],
     "delete_filesOrDirs": [
       "credentials.py",
@@ -101,6 +66,15 @@ The version must be 0.2.0.
 An optional dictionary of options you want to pass to Autorest. This will be passed in any call, but can be override by "autorest_options" in each data.
 Note that you CAN'T override "--output-folder" which is filled contextually.
 All options prefixed by "sdkrel:" can be a relative path that will be solved against SDK folder before being sent to Autorest.
+
+## envs
+Environment variables for after_scripts. 
+All options prefixed by "sdkrel:" can be a relative path that will be solved against SDK folder before being sent to the scripts.
+
+## advanced_options
+
+### clone_dir
+Add more layers of folders to clone the repo, if necessary. Right now, useful for Go only. "sdkrel:" will consider this as the final folder path.
 
 ## wrapper_filesOrDirs
 An optional list of files/directory to keep when we generate new SDK. This support a Bash-like wildcard syntax (i.e. '*/myfile?.py').
