@@ -37,7 +37,7 @@ def generate_sdk(sdk_git_id, base_branch_name,
     # No token is provided to clone SDK. Do NOT try to clone a private it will fail.
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        clone_dir = Path(temp_dir) / Path(global_conf["advanced_options"].get("clone_dir", "sdk"))
+        clone_dir = Path(temp_dir) / Path(global_conf.get("advanced_options", {}).get("clone_dir", "sdk"))
         _LOGGER.info("Clone dir will be: %s", clone_dir)
 
         with manage_git_folder(None, clone_dir, sdk_git_id+'@'+base_branch_name) as sdk_folder:

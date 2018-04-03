@@ -225,7 +225,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     # I don't know if the destination branch exists, try until it works
     config = None
-    for branch in base_branch_names + branch_name + fallback_base_branch_name:
+    for branch in base_branch_names + [branch_name] + [fallback_base_branch_name]:
         try:
             config = read_config_from_github(sdk_git_id, branch)
         except Exception:
@@ -238,7 +238,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        clone_dir = Path(temp_dir) / Path(global_conf["advanced_options"].get("clone_dir", "sdk"))
+        clone_dir = Path(temp_dir) / Path(global_conf.get("advanced_options", {}).get("clone_dir", "sdk"))
         _LOGGER.info("Clone dir will be: %s", clone_dir)
 
         with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
