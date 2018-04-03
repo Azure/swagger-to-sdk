@@ -7,6 +7,8 @@ import re
 import tempfile
 from pathlib import Path
 
+import requests
+
 from github import Github, UnknownObjectException
 
 from .autorest_tools import (
@@ -117,6 +119,10 @@ def read_config(sdk_git_folder, config_file):
     with open(config_path, 'r') as config_fd:
         return json.loads(config_fd.read())
 
+def read_config_from_github(sdk_id, branch="master"):
+    raw_link = str(get_configuration_github_path(sdk_id, branch))
+    content = requests.get(raw_link).text
+    return json.loads(content)
 
 def extract_conf_from_readmes(swagger_files_in_pr, restapi_git_folder, sdk_git_id, config):
     readme_files_in_pr = {readme for readme in swagger_files_in_pr if getattr(readme, "name", readme).lower().endswith("readme.md")}
@@ -204,3 +210,7 @@ def solve_relative_path(autorest_options, sdk_root):
         else:
             solved_autorest_options[key] = value
     return solved_autorest_options
+
+def get_configuration_github_path(sdk_id, branch="master"):
+    gh_token = os.environ.get("GH_TOKEN", None)  # Token here is just for private
+    return GithubLink(sdk_id, "raw", branch, CONFIG_FILE, gh_token)

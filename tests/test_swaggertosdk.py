@@ -10,6 +10,8 @@ from swaggertosdk.SwaggerToSdkCore import (
     extract_conf_from_readmes,
     get_context_tag_from_git_object,
     get_readme_files_from_git_object,
+    get_configuration_github_path,
+    read_config_from_github
 )
 from swaggertosdk.SwaggerToSdkNewCLI import (
     solve_relative_path,
@@ -281,3 +283,13 @@ def test_extract_conf_from_readmes(mocked_execute_simple_command):
     extract_conf_from_readmes(swagger_files_in_pr, Path(CWD, "files"), sdk_git_id, config)
 
     assert len(config["projects"]) == 2
+
+def test_get_configuration_github_path(github_token):
+    raw_link = str(get_configuration_github_path("Azure/azure-sdk-for-python", "dev"))
+    raw_link = raw_link.replace(github_token, "TOKEN")
+    assert raw_link == "https://TOKEN@raw.githubusercontent.com/Azure/azure-sdk-for-python/dev/swagger_to_sdk_config.json"
+
+def test_read_config_from_github(github_token):
+    conf = read_config_from_github("Azure/azure-sdk-for-python")
+    # Don't do too much
+    assert "meta" in conf

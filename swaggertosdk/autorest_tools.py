@@ -121,14 +121,15 @@ def generate_code(input_file, global_conf, local_conf, output_dir=None, autorest
         raise ValueError("Autorest call ended with 0, but no files were generated")
 
 
-def execute_simple_command(cmd_line, cwd=None, shell=False):
+def execute_simple_command(cmd_line, cwd=None, shell=False, env=None):
     try:
         process = subprocess.Popen(cmd_line,
                                    stderr=subprocess.STDOUT,
                                    stdout=subprocess.PIPE,
                                    universal_newlines=True,
                                    cwd=cwd,
-                                   shell=shell)
+                                   shell=shell,
+                                   env=env)
         output_buffer = []
         for line in process.stdout:
             output_buffer.append(line.rstrip())

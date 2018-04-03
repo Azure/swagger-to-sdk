@@ -23,6 +23,11 @@ def test_execute_simple_command():
     output = execute_simple_command(["python", "--version"])
     assert "Python" in output
 
+    env = dict(os.environ)
+    env.update({"GOPATH": "something"})
+    output = execute_simple_command(["python", "-c", "import os; print(os.environ['GOPATH'])"], env=env)
+    assert "something" in output
+
     try:
         execute_simple_command(["python", "--oiuyertuyerituy"])
         pytest.fail("This should raise an exception")

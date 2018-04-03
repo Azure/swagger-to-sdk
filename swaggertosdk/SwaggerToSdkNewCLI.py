@@ -9,8 +9,7 @@ import tempfile
 from git import Repo, GitCommandError
 
 from .SwaggerToSdkCore import (
-    CONFIG_FILE,
-    read_config,
+    read_config_from_github,
     DEFAULT_COMMIT_MESSAGE,
     get_input_paths,
     extract_conf_from_readmes,
@@ -119,9 +118,12 @@ def write_build_file(sdk_root, local_conf):
 
 def execute_after_script(sdk_root, global_conf, local_conf):
     after_scripts = merge_options(global_conf, local_conf, "after_scripts", keep_list_order=True) or []
+    local_envs = dict(os.environ)
+    local_envs.update(global_conf.get("envs", {}))
+
     for script in after_scripts:
         _LOGGER.info("Execute after script: %s", script)
-        execute_simple_command(script, cwd=sdk_root, shell=True)
+        execute_simple_command(script, cwd=sdk_root, shell=True, env=local_envs)
 
 
 def get_local_path_dir(root, relative_path):
@@ -155,7 +157,8 @@ def build_libraries(config, skip_callback, restapi_git_folder, sdk_repo, temp_di
 
     global_conf = config["meta"]
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_repo.working_tree_dir)
-
+    global_conf["envs"] = solve_relative_path(global_conf.get("envs", {}), sdk_repo.working_tree_dir)
+    global_conf["advanced_options"] = solve_relative_path(global_conf.get("advanced_options", {}), sdk_repo.working_tree_dir)
 
     for project, local_conf in config.get("projects", {}).items():
         if skip_callback(project, local_conf):
@@ -205,7 +208,6 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
     This method might push to "branch_name" and "base_branch_name". No push will be made to "fallback_base_branch_name"
     """
     gh_token = os.environ["GH_TOKEN"]
-    config_path = CONFIG_FILE
     message_template = DEFAULT_COMMIT_MESSAGE
     autorest_bin = None
     if sdk_tag is None:
@@ -221,65 +223,79 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
     # Always clone SDK from fallback branch that is required to exist
     branched_sdk_git_id = sdk_git_id+'@'+fallback_base_branch_name
 
-    with tempfile.TemporaryDirectory() as temp_dir, \
-            manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
-            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_git_id) as sdk_folder:
-
-        swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)
-        _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
-        if not swagger_files_in_commit:
-            _LOGGER.info("No Readme in PR, quit")
-            return
-
-        # SDK part
-        sdk_repo = Repo(str(sdk_folder))
-
-        for base_branch in base_branch_names:
-            _LOGGER.info('Checkout and create %s', base_branch)
-            checkout_and_create_branch(sdk_repo, base_branch)
-
-        _LOGGER.info('Try to checkout destination branch %s', branch_name)
+    # I don't know if the destination branch exists, try until it works
+    config = None
+    for branch in base_branch_names + branch_name + fallback_base_branch_name:
         try:
-            sdk_repo.git.checkout(branch_name)
-            _LOGGER.info('The branch exists.')
-        except GitCommandError:
-            _LOGGER.info('Destination branch does not exists')
-            # Will be created by do_commit
+            config = read_config_from_github(sdk_git_id, branch)
+        except Exception:
+            pass
+        else:
+            break
+    if config is None:
+        raise ValueError("Unable to locate configuration in {}".format(base_branch_names + branch_name + fallback_base_branch_name))
+    global_conf = config["meta"]
 
-        configure_user(gh_token, sdk_repo)
+    with tempfile.TemporaryDirectory() as temp_dir:
 
-        config = read_config(sdk_repo.working_tree_dir, config_path)
-        global_conf = config["meta"]
+        clone_dir = Path(temp_dir) / Path(global_conf["advanced_options"].get("clone_dir", "sdk"))
+        _LOGGER.info("Clone dir will be: %s", clone_dir)
 
-        # Look for configuration in Readme
-        _LOGGER.info('Extract conf from Readmes for target: %s', sdk_git_id)
-        extract_conf_from_readmes(swagger_files_in_commit, restapi_git_folder, sdk_tag, config)
-        _LOGGER.info('End of extraction')
+        with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
+            manage_git_folder(gh_token, clone_dir, branched_sdk_git_id) as sdk_folder:
 
-        def skip_callback(project, local_conf):
-            # We know "project" is based on Path in "swagger_files_in_commit"
-            if Path(project) in swagger_files_in_commit:
-                return False
-            # Might be a regular project
-            markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
-            if not (
-                    markdown_relative_path in swagger_files_in_commit or
-                    any(input_file in swagger_files_in_commit for input_file in optional_relative_paths)):
-                _LOGGER.info(f"In project {project} no files involved in this commit")
-                return True
-            return False
+            swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)
+            _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
+            if not swagger_files_in_commit:
+                _LOGGER.info("No Readme in PR, quit")
+                return
 
-        build_libraries(config, skip_callback, restapi_git_folder,
-                        sdk_repo, temp_dir, autorest_bin)
+            # SDK part
+            sdk_repo = Repo(str(sdk_folder))
 
-        try:
-            commit_for_sha = git_object.commit   # Commit
-        except AttributeError:
-            commit_for_sha = list(git_object.get_commits())[-1].commit  # PR
-        message = message_template + "\n\n" + commit_for_sha.message
-        commit_sha = do_commit(sdk_repo, message, branch_name, commit_for_sha.sha)
-        if commit_sha:
             for base_branch in base_branch_names:
-                sdk_repo.git.push('origin', base_branch, set_upstream=True)
-            sdk_repo.git.push('origin', branch_name, set_upstream=True)
-            return "https://github.com/{}/commit/{}".format(sdk_git_id, commit_sha)
+                _LOGGER.info('Checkout and create %s', base_branch)
+                checkout_and_create_branch(sdk_repo, base_branch)
+
+            _LOGGER.info('Try to checkout destination branch %s', branch_name)
+            try:
+                sdk_repo.git.checkout(branch_name)
+                _LOGGER.info('The branch exists.')
+            except GitCommandError:
+                _LOGGER.info('Destination branch does not exists')
+                # Will be created by do_commit
+
+            configure_user(gh_token, sdk_repo)
+
+            # Look for configuration in Readme
+            _LOGGER.info('Extract conf from Readmes for target: %s', sdk_git_id)
+            extract_conf_from_readmes(swagger_files_in_commit, restapi_git_folder, sdk_tag, config)
+            _LOGGER.info('End of extraction')
+
+            def skip_callback(project, local_conf):
+                # We know "project" is based on Path in "swagger_files_in_commit"
+                if Path(project) in swagger_files_in_commit:
+                    return False
+                # Might be a regular project
+                markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
+                if not (
+                        markdown_relative_path in swagger_files_in_commit or
+                        any(input_file in swagger_files_in_commit for input_file in optional_relative_paths)):
+                    _LOGGER.info(f"In project {project} no files involved in this commit")
+                    return True
+                return False
+
+            build_libraries(config, skip_callback, restapi_git_folder,
+                            sdk_repo, temp_dir, autorest_bin)
+
+            try:
+                commit_for_sha = git_object.commit   # Commit
+            except AttributeError:
+                commit_for_sha = list(git_object.get_commits())[-1].commit  # PR
+            message = message_template + "\n\n" + commit_for_sha.message
+            commit_sha = do_commit(sdk_repo, message, branch_name, commit_for_sha.sha)
+            if commit_sha:
+                for base_branch in base_branch_names:
+                    sdk_repo.git.push('origin', base_branch, set_upstream=True)
+                sdk_repo.git.push('origin', branch_name, set_upstream=True)
+                return "https://github.com/{}/commit/{}".format(sdk_git_id, commit_sha)

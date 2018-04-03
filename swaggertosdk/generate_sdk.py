@@ -26,6 +26,8 @@ def generate(config_path, sdk_folder, project_pattern, readme, restapi_git_folde
     global_conf = config["meta"]
     repotag = get_repo_tag_meta(global_conf)
     global_conf["autorest_options"] = solve_relative_path(global_conf.get("autorest_options", {}), sdk_folder)
+    global_conf["envs"] = solve_relative_path(global_conf.get("envs", {}), sdk_folder)
+    global_conf["advanced_options"] = solve_relative_path(global_conf.get("advanced_options", {}), sdk_folder)
     if restapi_git_folder:
         restapi_git_folder = Path(restapi_git_folder).expanduser()
 

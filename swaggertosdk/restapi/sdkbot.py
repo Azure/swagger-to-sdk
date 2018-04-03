@@ -7,7 +7,7 @@ from git import Repo
 
 from swaggertosdk.SwaggerToSdkCore import (
     CONFIG_FILE,
-    read_config,
+    read_config_from_github,
     build_swaggertosdk_conf_from_json_readme,
 )
 from swaggertosdk.git_tools import (
@@ -122,6 +122,8 @@ class GithubHandler:
             path = None  # Not such notion of path here, since it's inside SwaggerToSdk conf
         branched_rest_api_id = rest_api_id + "@" + rest_api_branch
 
+        config = read_config_from_github(pr.head.repo.full_name, branch_name)
+
         with tempfile.TemporaryDirectory() as temp_dir, \
                 manage_git_folder(token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
                 manage_git_folder(self.gh_token, Path(temp_dir) / Path("sdk"), branched_sdk_id) as sdk_folder:
@@ -129,7 +131,6 @@ class GithubHandler:
             sdk_repo = Repo(str(sdk_folder))
             configure_user(self.gh_token, sdk_repo)
 
-            config = read_config(sdk_repo.working_tree_dir, config_path)
             if path: # Assume this is a Readme path
                 config["projects"] = {} # Wipe out everything
                 build_swaggertosdk_conf_from_json_readme(path, sdkid, config, base_folder=restapi_git_folder)
