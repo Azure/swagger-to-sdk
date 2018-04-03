@@ -16,6 +16,9 @@ This is a configuration which MUST be at the root of the repository you wants to
 ```json
 {
   "meta": {
+    "after_scripts": [
+      "gofmt -w ./services/"
+    ],
     "version":"0.2.0",
     "autorest_options": {
       "license-header": "MICROSOFT_MIT_NO_VERSION",
@@ -61,6 +64,10 @@ This is a configuration which MUST be at the root of the repository you wants to
 
 ### version
 The version must be 0.2.0.
+
+## after_scripts
+
+List of commands to execute after the generation is done. Will be executed in the order of the list. Current working directory will be the cloned path. See also "envs" node.
 
 ## autorest_options
 An optional dictionary of options you want to pass to Autorest. This will be passed in any call, but can be override by "autorest_options" in each data.
