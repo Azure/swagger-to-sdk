@@ -225,7 +225,8 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     # I don't know if the destination branch exists, try until it works
     config = None
-    for branch in base_branch_names + [branch_name] + [fallback_base_branch_name]:
+    branch_list = base_branch_names + [branch_name] + [fallback_base_branch_name]
+    for branch in branch_list:
         try:
             config = read_config_from_github(sdk_git_id, branch)
         except Exception:
@@ -233,7 +234,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         else:
             break
     if config is None:
-        raise ValueError("Unable to locate configuration in {}".format(base_branch_names + branch_name + fallback_base_branch_name))
+        raise ValueError("Unable to locate configuration in {}".format(branch_list))
     global_conf = config["meta"]
 
     with tempfile.TemporaryDirectory() as temp_dir:
