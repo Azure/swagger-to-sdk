@@ -342,4 +342,5 @@ def test_github_link():
     assert str(link) == inputstr
     raw_link = link.as_raw_link()
     assert isinstance(raw_link, GithubLink)    
-    assert str(raw_link) == "https://token@raw.githubusercontent.com/Azure/azure-rest-api-specs/master/specification/billing/resource-manager/readme.md"
+    # Raw link with token does not use token in URL, since it has to be provided as Authorization: token <token>
+    assert str(raw_link) == "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/master/specification/billing/resource-manager/readme.md"

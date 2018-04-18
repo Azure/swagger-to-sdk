@@ -301,11 +301,10 @@ class GithubLink:
         if self.link_type == "raw":
             netloc = "raw.githubusercontent.com"
             path = "/".join(["", self.gitid, self.branch_or_commit, self.path])
+            # If raw and token, needs to be passed with "Authorization: token <token>", so nothing to do here
         else:
-            netloc = "github.com"
+            netloc = "github.com" if not self.token else self.token + "@github.com"
             path = "/".join(["", self.gitid, self.link_type, self.branch_or_commit, self.path])
-        if self.token:
-            netloc = self.token + "@" + netloc
         return urlunsplit(("https", netloc, path, '', ''))
 
     def as_raw_link(self):

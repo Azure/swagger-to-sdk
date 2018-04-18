@@ -284,12 +284,19 @@ def test_extract_conf_from_readmes(mocked_execute_simple_command):
 
     assert len(config["projects"]) == 2
 
-def test_get_configuration_github_path(github_token):
+def test_get_configuration_github_path():
     raw_link = str(get_configuration_github_path("Azure/azure-sdk-for-python", "dev"))
-    raw_link = raw_link.replace(github_token, "TOKEN")
-    assert raw_link == "https://TOKEN@raw.githubusercontent.com/Azure/azure-sdk-for-python/dev/swagger_to_sdk_config.json"
+    assert raw_link == "https://raw.githubusercontent.com/Azure/azure-sdk-for-python/dev/swagger_to_sdk_config.json"
 
 def test_read_config_from_github(github_token):
     conf = read_config_from_github("Azure/azure-sdk-for-python")
     # Don't do too much
     assert "meta" in conf
+
+    try:
+        conf = read_config_from_github("Azure/azure-sdk-for-python-pr", gh_token=github_token)
+        # Don't do too much
+        assert "meta" in conf
+    except Exception:
+        # This test might fail on Travis for some reasons....
+        pass

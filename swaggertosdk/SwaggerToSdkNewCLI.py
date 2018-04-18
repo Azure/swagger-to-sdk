@@ -228,7 +228,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
     branch_list = base_branch_names + [branch_name] + [fallback_base_branch_name]
     for branch in branch_list:
         try:
-            config = read_config_from_github(sdk_git_id, branch)
+            config = read_config_from_github(sdk_git_id, branch, gh_token)
         except Exception:
             pass
         else:

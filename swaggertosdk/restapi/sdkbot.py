@@ -122,7 +122,7 @@ class GithubHandler:
             path = None  # Not such notion of path here, since it's inside SwaggerToSdk conf
         branched_rest_api_id = rest_api_id + "@" + rest_api_branch
 
-        config = read_config_from_github(pr.head.repo.full_name, branch_name)
+        config = read_config_from_github(pr.head.repo.full_name, branch_name, token)
 
         with tempfile.TemporaryDirectory() as temp_dir, \
                 manage_git_folder(token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
