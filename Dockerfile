@@ -4,8 +4,8 @@ USER root
 
 LABEL maintainer="lmazuel"
 
-# Basic Ubuntu packages (libunwind for .NET)
-RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8
+# Basic Ubuntu packages + Ruby (libunwind for .NET)
+RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8 ruby bundler
 
 # NodeJS
 RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
