@@ -8,7 +8,7 @@ LABEL maintainer="lmazuel"
 RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8 ruby bundler libpng-dev zlibc zlib1g zlib1g-dev
 
 # NodeJS
-RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - && \
     apt-get update && apt-get install -y nodejs
 
 # Go 1.9
