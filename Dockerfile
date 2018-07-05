@@ -40,5 +40,9 @@ COPY swaggertosdk /tmp/swaggertosdk/
 WORKDIR /tmp
 RUN python3 -m pip install .[rest]
 
+# Make "python" to default on Python 3. Probably breaking Ubuntu apt
+# based on Python 2, but we don't care in a container
+RUN ln -s /usr/bin/python3 /usr/local/bin/python
+
 WORKDIR /git-restapi
 ENTRYPOINT ["python3.6", "-m", "swaggertosdk"]
