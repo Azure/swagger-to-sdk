@@ -5,10 +5,11 @@ USER root
 LABEL maintainer="lmazuel"
 
 # Basic Ubuntu packages + Ruby (libunwind for .NET)
-RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8 ruby bundler libpng-dev zlibc zlib1g zlib1g-dev nodejs npm python3-pip
+RUN apt-get update && apt-get install -y curl git software-properties-common locales libunwind8 ruby bundler libpng-dev zlibc zlib1g zlib1g-dev python3-pip
 
-# Update npm
-RUN npm install npm -g
+# NodeJS
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - && \
+    apt-get update && apt-get install -y nodejs
 
 # Go 1.9
 RUN add-apt-repository ppa:gophers/archive && \
