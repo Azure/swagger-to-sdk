@@ -10,16 +10,16 @@ from swaggertosdk.SwaggerToSdkCore import (
     read_config_from_github,
     build_swaggertosdk_conf_from_json_readme,
 )
-from swaggertosdk.git_tools import (
+from azure_devtools.ci_tools.git_tools import (
     do_commit,
 )
-from swaggertosdk.github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     configure_user,
     manage_git_folder,
     GithubLink
 )
 from swaggertosdk.python_sdk_tools import build_installation_message
-from .bot_framework import (
+from azure_devtools.ci_tools.bot_framework import (
     order
 )
 

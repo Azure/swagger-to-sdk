@@ -3,7 +3,7 @@ import logging
 
 from github import Github
 
-from .bot_framework import order
+from azure_devtools.ci_tools.bot_framework import order
 from .github_handler import rest_pr_management, clean_sdk_pr
 
 _LOGGER = logging.getLogger("swaggertosdk.restapi.restbot")

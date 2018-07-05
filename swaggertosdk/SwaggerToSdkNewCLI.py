@@ -22,11 +22,11 @@ from .autorest_tools import (
     generate_code,
     merge_options,
 )
-from .git_tools import (
+from azure_devtools.ci_tools.git_tools import (
     checkout_and_create_branch,
     do_commit,
 )
-from .github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     configure_user,
     manage_git_folder,
 )
@@ -194,7 +194,7 @@ def build_libraries(config, skip_callback, restapi_git_folder, sdk_repo, temp_di
 def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_git_id, base_branch_names, *, fallback_base_branch_name="master", sdk_tag=None):
     """Generate SDK from a commit or a PR object.
 
-    git_object is the initial commit/PR from the RestAPI repo. If git_object is a PR, prefer to checkout Github PR magic branches.
+    git_object is the initial commit/PR from the RestAPI repo. If git_object is a PR, prefer to checkout Github PR "merge_commit_sha"
     restapi_git_id explains where to clone the repo.
     sdk_git_id explains where to push the commit.
     sdk_tag explains what is the tag used in the Readme for the swagger-to-sdk section. If not provided, use sdk_git_id.
@@ -215,10 +215,8 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     try:  # Checkout the sha if commit obj
         branched_rest_api_id = restapi_git_id+'@'+git_object.sha
-        pr_number = None
-    except (AttributeError, TypeError):  # This is a PR, don't clone the fork but "base" repo and PR magic branch
-        branched_rest_api_id = git_object.base.repo.full_name
-        pr_number = git_object.number
+    except (AttributeError, TypeError):  # This is a PR, don't clone the fork but "base" repo and PR magic commit
+        branched_rest_api_id = git_object.base.repo.full_name+'@'+git_object.merge_commit_sha
 
     # Always clone SDK from fallback branch that is required to exist
     branched_sdk_git_id = sdk_git_id+'@'+fallback_base_branch_name
@@ -242,7 +240,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         clone_dir = Path(temp_dir) / Path(global_conf.get("advanced_options", {}).get("clone_dir", "sdk"))
         _LOGGER.info("Clone dir will be: %s", clone_dir)
 
-        with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
+        with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
             manage_git_folder(gh_token, clone_dir, branched_sdk_git_id) as sdk_folder:
 
             swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)

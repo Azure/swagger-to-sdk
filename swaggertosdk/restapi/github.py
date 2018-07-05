@@ -11,7 +11,7 @@ from flask import request, jsonify
 
 from github import Github
 
-from .bot_framework import (
+from azure_devtools.ci_tools.bot_framework import (
     BotHandler
 )
 from .sdkbot import (
@@ -24,7 +24,7 @@ from .github_handler import (
     rest_pr_management,
     generate_sdk_from_git_object
 )
-from ..github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     exception_to_github,
     DashboardCommentableObject,
 )

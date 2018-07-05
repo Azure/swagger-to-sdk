@@ -16,11 +16,11 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'License :: OSI Approved :: MIT License',
     ],
     install_requires=[
-        "PyGithub>=1.36", # Can Merge PR after 1.36
-        "GitPython",
+        "azure-devtools[ci_tools]>=1.1.0",
         "requests",
         "cookiecutter",
         "wheel"
@@ -36,5 +36,5 @@ setup(
             'generate_sdk=swaggertosdk.generate_sdk:generate_main',
             'generate_package=swaggertosdk.generate_package:generate_main',
         ],
-    }    
+    }
 )

@@ -10,7 +10,7 @@ from swaggertosdk.SwaggerToSdkCore import (
     get_context_tag_from_git_object,
 )
 from swaggertosdk.SwaggerToSdkNewCLI import generate_sdk_from_git_object
-from swaggertosdk.github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     get_or_create_pull,
     DashboardCommentableObject,
     manage_git_folder,
@@ -265,7 +265,7 @@ def clean_sdk_pr(rest_pr, sdk_repo):
         return "Didn't find the SDK PR"
 
     #
-    # Delete the branch. I need to clone the 
+    # Delete the branch. I need to clone the
     #
     gh_token = os.environ["GH_TOKEN"]
     login = user_from_token(gh_token).login
@@ -288,4 +288,3 @@ def clean_sdk_pr(rest_pr, sdk_repo):
         msg = upstream.push(":"+sdk_pr_head)  # old style delete
 
         _LOGGER.debug(msg)
-    

@@ -14,10 +14,10 @@ from .SwaggerToSdkCore import (
     get_readme_files_from_file_list,
     solve_relative_path
 )
-from .github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     manage_git_folder,
 )
-from .git_tools import (
+from azure_devtools.ci_tools.git_tools import (
     get_files_in_commit
 )
 

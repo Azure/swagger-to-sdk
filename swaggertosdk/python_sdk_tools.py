@@ -5,10 +5,10 @@ import tempfile
 
 from github import Github
 
-from .github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     manage_git_folder,
     DashboardCommentableObject
-) 
+)
 from .autorest_tools import execute_simple_command
 
 _LOGGER = logging.getLogger(__name__)

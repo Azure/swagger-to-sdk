@@ -16,7 +16,7 @@ from .autorest_tools import (
     autorest_bootstrap_version_finder,
     autorest_swagger_to_sdk_conf,
 )
-from .github_tools import (
+from azure_devtools.ci_tools.github_tools import (
     get_files,
     GithubLink
 )
