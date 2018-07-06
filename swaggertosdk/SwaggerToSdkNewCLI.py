@@ -215,8 +215,10 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     try:  # Checkout the sha if commit obj
         branched_rest_api_id = restapi_git_id+'@'+git_object.sha
+        pr_number = None
     except (AttributeError, TypeError):  # This is a PR, don't clone the fork but "base" repo and PR magic commit
         branched_rest_api_id = git_object.base.repo.full_name+'@'+git_object.merge_commit_sha
+        pr_number = git_object.number
 
     # Always clone SDK from fallback branch that is required to exist
     branched_sdk_git_id = sdk_git_id+'@'+fallback_base_branch_name
@@ -240,7 +242,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         clone_dir = Path(temp_dir) / Path(global_conf.get("advanced_options", {}).get("clone_dir", "sdk"))
         _LOGGER.info("Clone dir will be: %s", clone_dir)
 
-        with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id) as restapi_git_folder, \
+        with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
             manage_git_folder(gh_token, clone_dir, branched_sdk_git_id) as sdk_folder:
 
             swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)

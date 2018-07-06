@@ -20,7 +20,7 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     install_requires=[
-        "azure-devtools[ci_tools]>=1.1.0",
+        "azure-devtools[ci_tools]>=1.1.1",
         "requests",
         "cookiecutter",
         "wheel"
