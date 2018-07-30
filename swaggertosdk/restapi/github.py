@@ -117,6 +117,9 @@ def push(body):
     if rest_api_branch_name == "master":
         return {'message': 'Webhook disabled for RestAPI master'}
 
+    if body['deleted']:
+        return {'message': 'Webhook disabled if push is a delete'}
+
     gh_token = os.environ["GH_TOKEN"]
     github_con = Github(gh_token)
 
