@@ -243,6 +243,7 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
     # If PR is only about a language that this conf can't handle, skip fast
     if not this_conf_will_generate_for_this_pr(git_object, global_conf):
+        _LOGGER.info("Skipping this job based on conf not impacted by Git object")
         return
 
     with tempfile.TemporaryDirectory() as temp_dir:
