@@ -11,7 +11,10 @@ from swaggertosdk.SwaggerToSdkCore import (
     get_context_tag_from_git_object,
     get_readme_files_from_git_object,
     get_configuration_github_path,
-    read_config_from_github
+    read_config_from_github,
+    get_language_from_conf,
+    Language,
+    this_conf_will_generate_for_this_pr
 )
 from swaggertosdk.SwaggerToSdkNewCLI import (
     solve_relative_path,
@@ -82,6 +85,52 @@ def test_get_readme_files_from_git_object(github_client):
     assert len(readme_files) == 1
     readme_file = readme_files.pop()
     assert readme_file == Path("specification/datafactory/resource-manager/readme.md")
+
+    readme_files = get_readme_files_from_git_object(get_pr(github_client, 'Azure/azure-rest-api-specs', 3518), base_dir=Path(CWD) / Path("files"))
+    assert len(readme_files) == 2
+    assert Path("specification/containerinstance/resource-manager/readme.md") in readme_files
+    assert Path("specification/containerinstance/resource-manager/readme.nodejs.md") in readme_files
+
+def test_will_this_pr_generate_for_this_conf(github_client):
+
+    # PR 3518 is NodeJS specific
+
+    conf = {
+        "autorest_options":{
+            "nodejs": "",
+            "something": "weird"
+        }
+    }
+    assert this_conf_will_generate_for_this_pr(get_pr(github_client, 'Azure/azure-rest-api-specs', 3518), conf)
+
+    conf = {
+        "autorest_options":{
+            "python": "",
+            "something": "weird"
+        }
+    }
+    assert not this_conf_will_generate_for_this_pr(get_pr(github_client, 'Azure/azure-rest-api-specs', 3518), conf)
+
+    # PR 3541 is Java specific, but in common Readme, so should not trigger the bypass
+
+    conf = {
+        "autorest_options":{
+            "python": "",
+            "something": "weird"
+        }
+    }
+    assert this_conf_will_generate_for_this_pr(get_pr(github_client, 'Azure/azure-rest-api-specs', 3541), conf)
+
+    # PR random PR with Swagger
+
+    conf = {
+        "autorest_options":{
+            "python": "",
+            "something": "weird"
+        }
+    }
+    assert this_conf_will_generate_for_this_pr(get_pr(github_client, 'Azure/azure-rest-api-specs', 3522), conf)
+
 
 def test_get_input_path():
     main, opt = get_input_paths(
@@ -244,6 +293,33 @@ def test_move_autorest_files():
         assert Path(output, 'generated.txt').exists()
         assert not Path(output, 'erase.txt').exists()
 
+
+def test_get_language_from_conf():
+    conf = {
+        "autorest_options":{
+            "python": "",
+            "something": "weird"
+        }
+    }
+    assert get_language_from_conf(conf) == Language.PYTHON
+
+    conf = {
+        "autorest_options":{
+            "something": "weird"
+        }
+    }
+    assert get_language_from_conf(conf) is None
+
+    conf = {
+        "autorest_options":{
+            "python": "",
+            "go": ""
+        }
+    }
+    assert get_language_from_conf(conf) is None
+
+
+
 @unittest.mock.patch('swaggertosdk.autorest_tools.execute_simple_command')
 def test_extract_conf_from_readmes(mocked_execute_simple_command):
     def side_effect(*args, **kwargs):
@@ -252,10 +328,10 @@ def test_extract_conf_from_readmes(mocked_execute_simple_command):
         Path(output_path, "configuration.json").write_text(
             json.dumps({
                 "swagger-to-sdk": [
-                {},
-                {
-                    "repo": "azure-sdk-for-python"
-                }
+                    {},
+                    {
+                        "repo": "azure-sdk-for-python"
+                    }
                 ],
             })
         )
@@ -271,7 +347,6 @@ def test_extract_conf_from_readmes(mocked_execute_simple_command):
     key = list(config["projects"].keys())[0]
     assert "readme.md" in key
     assert "readme.md" in config["projects"][key]["markdown"]
-    print(config)
 
     config = {
         "projects": {

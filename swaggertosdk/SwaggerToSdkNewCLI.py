@@ -16,6 +16,7 @@ from .SwaggerToSdkCore import (
     get_readme_files_from_git_object,
     build_file_content,
     solve_relative_path,
+    this_conf_will_generate_for_this_pr
 )
 from .autorest_tools import (
     execute_simple_command,
@@ -240,6 +241,10 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         raise ValueError("Unable to locate configuration in {}".format(branch_list))
     global_conf = config["meta"]
 
+    # If PR is only about a language that this conf can't handle, skip fast
+    if not this_conf_will_generate_for_this_pr(git_object, global_conf):
+        return
+
     with tempfile.TemporaryDirectory() as temp_dir:
 
         clone_dir = Path(temp_dir) / Path(global_conf.get("advanced_options", {}).get("clone_dir", "sdk"))
@@ -248,9 +253,9 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
         with manage_git_folder(gh_token, Path(temp_dir) / Path("rest"), branched_rest_api_id, pr_number=pr_number) as restapi_git_folder, \
             manage_git_folder(gh_token, clone_dir, branched_sdk_git_id) as sdk_folder:
 
-            swagger_files_in_commit = get_readme_files_from_git_object(git_object, restapi_git_folder)
-            _LOGGER.info("Files in PR: %s ", swagger_files_in_commit)
-            if not swagger_files_in_commit:
+            readme_files_infered = get_readme_files_from_git_object(git_object, restapi_git_folder)
+            _LOGGER.info("Readmes files infered from PR: %s ", readme_files_infered)
+            if not readme_files_infered:
                 _LOGGER.info("No Readme in PR, quit")
                 return
 
@@ -273,18 +278,18 @@ def generate_sdk_from_git_object(git_object, branch_name, restapi_git_id, sdk_gi
 
             # Look for configuration in Readme
             _LOGGER.info('Extract conf from Readmes for target: %s', sdk_git_id)
-            extract_conf_from_readmes(swagger_files_in_commit, restapi_git_folder, sdk_tag, config)
+            extract_conf_from_readmes(readme_files_infered, restapi_git_folder, sdk_tag, config)
             _LOGGER.info('End of extraction')
 
             def skip_callback(project, local_conf):
-                # We know "project" is based on Path in "swagger_files_in_commit"
-                if Path(project) in swagger_files_in_commit:
+                # We know "project" is based on Path in "readme_files_infered"
+                if Path(project) in readme_files_infered:
                     return False
                 # Might be a regular project
                 markdown_relative_path, optional_relative_paths = get_input_paths(global_conf, local_conf)
                 if not (
-                        markdown_relative_path in swagger_files_in_commit or
-                        any(input_file in swagger_files_in_commit for input_file in optional_relative_paths)):
+                        markdown_relative_path in readme_files_infered or
+                        any(input_file in readme_files_infered for input_file in optional_relative_paths)):
                     _LOGGER.info(f"In project {project} no files involved in this commit")
                     return True
                 return False

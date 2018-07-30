@@ -1,5 +1,6 @@
 """SwaggerToSdk core tools.
 """
+from enum import Enum, unique
 import json
 import logging
 import os
@@ -53,6 +54,42 @@ def get_repo_tag_meta(meta_conf):
     raise ValueError("No repotag found or infered")
 
 
+@unique
+class Language(str, Enum):
+    GOLANG = "go"
+    RUBY = "ruby"
+    JAVA = "java"
+    NODEJS = "nodejs"
+    CSHARP = "csharp"
+    PYTHON = "python"
+
+
+def get_language_from_conf(meta_conf):
+    """Detect the language based on the default Autorest options.
+    Assuming all language use --mylanguage in the config file.
+    If I don't find anything, well just say I don't know...
+
+    This is based on autorest language flags.
+    :rtype: Language
+    """
+    autorest_options_lang = set(meta_conf["autorest_options"].keys())
+    languages = set()
+    for value in Language:
+        if value in autorest_options_lang:
+            languages.add(value)
+
+    if not languages:
+        _LOGGER.warning("No detected language from this conf")
+        return None  # I don't what this conf is about?
+
+    language = languages.pop()
+    if languages:
+        _LOGGER.warning("This SwaggerToSdk conf seems to generate too much language in one call, assume we don't know")
+        return None
+
+    return language
+
+
 def get_context_tag_from_git_object(git_object):
     files_list = [file.filename for file in get_files(git_object)]
     return get_context_tag_from_file_list(files_list)
@@ -84,6 +121,22 @@ def get_context_tag_from_file_list(files_list):
             continue
         # No context-tags
     return context_tags
+
+
+def this_conf_will_generate_for_this_pr(git_object, config):
+    """Try to guess if this PR has a chance to generate something for this conf.
+
+    Right now, just match the language in the conf with the presence
+    of ONLY "readme.language.md" files.
+    """
+    lang = get_language_from_conf(config)
+    filenames = [file.filename.lower() for file in get_files(git_object)]
+    readme_lang = [name for name in filenames if re.match(r"(.*)readme.\w+.md", name)]
+
+    if len(readme_lang) != len(filenames):
+        return True  # This means there is files that are not language specific readme
+
+    return bool([name for name in readme_lang if name.endswith("readme.{}.md".format(lang))])
 
 
 def get_readme_files_from_git_object(git_object, base_dir=Path('.')):
