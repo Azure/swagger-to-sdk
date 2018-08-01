@@ -1,11 +1,17 @@
 language: python
 cache: pip
-python:
-  - "3.6"
-# command to install dependencies
-install:
-  - pip install -r dev_requirements.txt
-script: 
-  - pytest --cov=swaggertosdk
-after_success:
-  - coveralls
+services:
+  - docker
+jobs:
+  include:
+    - stage: Python tests
+      python: 3.6
+      install:
+        - pip install -r dev_requirements.txt
+      script: 
+        - pytest --cov=swaggertosdk
+      after_success:
+        - coveralls
+    - stage: Docker testing
+      script:
+        - docker build -t testing .
