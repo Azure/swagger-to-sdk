@@ -18,7 +18,8 @@ RUN add-apt-repository ppa:gophers/archive && \
 ENV PATH="/usr/lib/go-1.9/bin:/root/go/bin:${PATH}"
 
 # Go dep
-RUN go get -u github.com/golang/dep/cmd/dep
+ENV DEP_RELEASE_TAG=v0.5.0
+RUN curl -sSL https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 # Autorest
 WORKDIR /opt
