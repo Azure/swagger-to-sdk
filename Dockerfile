@@ -15,7 +15,8 @@ RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - && \
 RUN add-apt-repository ppa:gophers/archive && \
 	apt-get update && \
 	apt-get install -y golang-1.9-go
-ENV PATH="/usr/lib/go-1.9/bin:/root/go/bin:${PATH}"
+RUN ln -s /usr/lib/go-1.9 /root/go
+ENV PATH="/root/go/bin:${PATH}"
 
 # Go dep
 ENV DEP_RELEASE_TAG=v0.5.0
