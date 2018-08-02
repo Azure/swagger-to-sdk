@@ -33,7 +33,8 @@ class RestAPIRepoHandler:
             rest_pr,
             sdk_repo,
             repotag or self.repotag,
-            self.sdk_default_base
+            self.sdk_default_base,
+            merge_context_branch=True
         )
 
     @order

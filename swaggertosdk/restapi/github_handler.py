@@ -69,7 +69,7 @@ def manage_labels(issue, to_add=None, to_remove=None):
             # Never fail is adding a label was impossible
             _LOGGER.warning("Unable to add label: %s", label_add)
 
-def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK_BRANCH):
+def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK_BRANCH, *, merge_context_branch=False):
     """What to do when something happen to a PR in the Rest repo.
 
     :param restpr: a PyGithub pull object
@@ -78,6 +78,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     :type sdk_repo: github.Repository.Repository
     :param str sdk_tag: repotag to use to filter SwaggerToSDK conf
     :param str sdk_default_base: Default SDK branch.
+    :param bool merge_context_branch: If True, and context branch, try to do a merge commit to update it.
     """
     # Extract some metadata as variables
     rest_repo = rest_pr.base.repo
@@ -137,6 +138,13 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     if is_pushed_to_context_branch:
         sdk_pr_base = _SDK_PR_TEMPLATE.format(context_tags[0])
         sdk_checkout_bases.insert(0, sdk_pr_base)
+
+        if merge_context_branch:
+            try:
+                sdk_repo.merge(sdk_pr_base, sdk_default_base)
+            except GithubException:
+                # Merge was impossible, log it but ignore
+                _LOGGER.warning("Unable to merge {} into {}".format(sdk_default_base, sdk_pr_base))
 
     #
     # Try to generate on "head", whatever the state of the PR.
