@@ -178,6 +178,7 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
     sdk_pr_as_issue = sdk_repo.get_issue(sdk_pr.number)
     sdk_pr_merged = False
     if rest_pr.closed_at:  # If there is a date, this is closed
+        head_ref = sdk_repo.get_git_ref("heads/{}".format(sdk_pr_head))
         if rest_pr.merged:
             manage_labels(sdk_pr_as_issue,
                           to_add=[SwaggerToSdkLabels.merged],
@@ -187,6 +188,8 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                     # Merge "single context PRs" automatically
                     sdk_pr.merge(merge_method="squash")
                     sdk_pr_merged = True
+                    # Delete branch from merged PR
+                    head_ref.delete()
                 except Exception as err:
                     _LOGGER.warning("Was unable to merge: %s", err)
         else:
@@ -194,6 +197,8 @@ def rest_pr_management(rest_pr, sdk_repo, sdk_tag, sdk_default_base=_DEFAULT_SDK
                           to_add=[SwaggerToSdkLabels.refused],
                           to_remove=[SwaggerToSdkLabels.in_progress])
             sdk_pr.edit(state="closed")
+            # Delete branch from closed PR
+            head_ref.delete()
     else:
         # Try to remove "refused", if it was re-opened
         manage_labels(sdk_pr_as_issue,
@@ -265,26 +270,7 @@ def clean_sdk_pr(rest_pr, sdk_repo):
         return "Didn't find the SDK PR"
 
     #
-    # Delete the branch. I need to clone the
+    # Delete the branch.
     #
-    gh_token = os.environ["GH_TOKEN"]
-    login = user_from_token(gh_token).login
-    credentials_part = '{user}:{token}@'.format(
-        user=login,
-        token=gh_token
-    )
-    upstream_url = 'https://{credentials}github.com/{sdk_git_id}.git'.format(
-        credentials=credentials_part,
-        sdk_git_id=sdk_pr.head.repo.full_name
-    )
-    with tempfile.TemporaryDirectory() as temp_dir, \
-            manage_git_folder(gh_token, Path(temp_dir) / Path("sdk"), sdk_repo.full_name) as sdk_folder:
-
-        sdk_repo = Repo(str(sdk_folder))
-        configure_user(gh_token, sdk_repo)
-
-        upstream = sdk_repo.create_remote('upstream', url=upstream_url)
-        upstream.fetch()
-        msg = upstream.push(":"+sdk_pr_head)  # old style delete
-
-        _LOGGER.debug(msg)
+    head_ref = sdk_repo.get_git_ref("heads/{}".format(sdk_pr_head))
+    head_ref.delete()
