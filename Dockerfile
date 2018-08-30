@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y curl git software-properties-common loc
 RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - && \
     apt-get update && apt-get install -y nodejs
 
-# Go 1.9
-RUN add-apt-repository ppa:gophers/archive && \
-	apt-get update && \
-	apt-get install -y golang-1.9-go
-RUN ln -s /usr/lib/go-1.9 /root/go
+# Go
+ENV GOLANGVER=1.11
+RUN curl -sLO https://dl.google.com/go/go${GOLANGVER}.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf go${GOLANGVER}.linux-amd64.tar.gz
+RUN ln -s /usr/local/go /root/go
 ENV PATH="/root/go/bin:${PATH}"
 
 # Go dep
