@@ -15,6 +15,7 @@ This is a configuration which MUST be at the root of the repository you wants to
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/lmazuel/swagger-to-sdk/master/swagger_to_sdk_config.schema.json",
   "meta": {
     "after_scripts": [
       "gofmt -w ./services/"
