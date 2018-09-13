@@ -224,6 +224,7 @@ def build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, ba
             temp_dir
         )
     sdk_git_short_id = sdk_git_id.split("/")[-1].lower()
+    _LOGGER.info("Looking for tag {} in readme {}".format(sdk_git_short_id, readme_file))
     for swagger_to_sdk_conf in readme_as_conf:
         repo = swagger_to_sdk_conf.get("repo", "")
         repo = repo.split("/")[-1].lower() # Be sure there is no org/login part
@@ -238,6 +239,7 @@ def build_swaggertosdk_conf_from_json_readme(readme_file, sdk_git_id, config, ba
             return generated_config
         else:
             _LOGGER.info("Skip mismatch {} from {}".format(repo, sdk_git_short_id))
+    _LOGGER.info("Didn't find tag {} in readme {}. Did you forget to update the SwaggerToSdk section?".format(sdk_git_short_id, readme_file))
 
 def get_input_paths(global_conf, local_conf):
     """Returns a 2-tuple:
