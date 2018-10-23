@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: restserverruby-service
+  namespace: swaggertosdk
+spec:
+  selector:
+    app: restserverruby
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: LoadBalancer

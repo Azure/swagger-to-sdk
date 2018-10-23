@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restserverruby
+  namespace: swaggertosdk
+  labels:
+    app: restserverruby
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restserverruby
+  template:
+    metadata:
+      labels:
+        app: restserverruby
+    spec:
+      containers:
+      - args:
+        - --rest-server
+        - --verbose
+        env:
+        - name: GH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: swaggertosdk
+              key: GithubToken
+        - name: DEPLOYDATE
+          value: "20181022"
+        image: lmazuel/swagger-to-sdk
+        imagePullPolicy: Always
+        name: restserverruby
+        ports:
+        - containerPort: 5000
+          protocol: TCP
