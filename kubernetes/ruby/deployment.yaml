@@ -27,7 +27,7 @@ spec:
               key: GithubToken
         - name: DEPLOYDATE
           value: "20181022"
-        image: lmazuel/swagger-to-sdk
+        image: azuresdk/swagger-to-sdk
         imagePullPolicy: Always
         name: restserverruby
         ports:

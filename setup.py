@@ -9,7 +9,7 @@ setup(
     license='MIT License',
     author='Microsoft Corporation',
     author_email='azpysdkhelp@microsoft.com',
-    url='https://github.com/lmazuel/swagger-to-sdk',
+    url='https://github.com/Azure/swagger-to-sdk',
     packages=find_packages(exclude=["tests"]),
     classifiers=[
         'Development Status :: 4 - Beta',

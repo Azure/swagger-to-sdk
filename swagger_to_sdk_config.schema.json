@@ -4,7 +4,7 @@
   "properties": {
     "$schema": {
       "enum": [
-        "https://raw.githubusercontent.com/lmazuel/swagger-to-sdk/master/swagger_to_sdk_config.schema.json"
+        "https://raw.githubusercontent.com/Azure/swagger-to-sdk/master/swagger_to_sdk_config.schema.json"
       ]
     },
     "meta": {
