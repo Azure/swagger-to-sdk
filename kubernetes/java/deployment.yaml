@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: restserverjava
+  namespace: swaggertosdk
+  labels:
+    app: restserverjava
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: restserverjava
+  template:
+    metadata:
+      labels:
+        app: restserverjava
+    spec:
+      containers:
+      - args:
+        - --rest-server
+        - --verbose
+        env:
+        - name: GH_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: swaggertosdk
+              key: GithubToken
+        - name: DEPLOYDATE
+          value: "20181024"
+        image: lmazuel/swagger-to-sdk
+        imagePullPolicy: Always
+        name: restserverjava
+        ports:
+        - containerPort: 5000
+          protocol: TCP

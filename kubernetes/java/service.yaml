@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: restserverjava-service
+  namespace: swaggertosdk
+spec:
+  selector:
+    app: restserverjava
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5000
+  type: LoadBalancer
