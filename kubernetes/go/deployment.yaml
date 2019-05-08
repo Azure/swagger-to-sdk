@@ -26,7 +26,7 @@ spec:
               name: swaggertosdk
               key: GithubToken
         - name: DEPLOYDATE
-          value: "20181217"
+          value: "20190326"
         image: azuresdk/swagger-to-sdk
         imagePullPolicy: Always
         name: restservergo
