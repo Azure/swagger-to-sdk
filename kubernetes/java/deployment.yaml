@@ -26,8 +26,8 @@ spec:
               name: swaggertosdk
               key: GithubToken
         - name: DEPLOYDATE
-          value: "20181024"
-        image: lmazuel/swagger-to-sdk
+          value: "20190614"
+        image: azuresdk/swagger-to-sdk
         imagePullPolicy: Always
         name: restserverjava
         ports:
